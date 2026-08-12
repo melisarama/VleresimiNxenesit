@@ -1,5 +1,7 @@
-const supabaseUrl='https://hasxtknfrucwdvkfxjof.supabase.co';
-    const supabasePublishableKey='sb_publishable_k1fsu3rwBh8eVv_n6M-jzw_YvTIewlv';
+const appConfig=window.MESIMI_CONFIG||{};
+    const supabaseUrl=appConfig.supabaseUrl;
+    const supabasePublishableKey=appConfig.supabasePublishableKey;
+    if(!supabaseUrl||!supabasePublishableKey) throw new Error('Supabase configuration is missing. Create .env for local development or provide src/config.js in static hosting.');
     const supabaseClient=window.supabase.createClient(supabaseUrl,supabasePublishableKey);
     let currentUser=null;
     let currentTeacherId=null;
@@ -55,7 +57,7 @@ const supabaseUrl='https://hasxtknfrucwdvkfxjof.supabase.co';
       currentUser=user;
       currentTeacherId=user.id;
       const [profileResult,subjectResult,studentResult,supportResult,chapterResult,gradeResult,moodResult,teacherNoticeResult]=await Promise.all([
-        supabaseClient.from('teacher_profiles').select('*').eq('id',user.id).single(),
+        supabaseClient.from('profiles').select('*').eq('id',user.id).eq('role','teacher').eq('active',true).single(),
         supabaseClient.from('teacher_subjects').select('subject_id,subjects(id,name)').eq('teacher_id',user.id),
         supabaseClient.from('students').select('*'),
         supabaseClient.from('student_support_profiles').select('*'),

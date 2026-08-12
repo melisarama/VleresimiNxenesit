@@ -258,6 +258,25 @@ as $$
   )
 $$;
 
+create or replace function public.can_teacher_assess(target_student uuid, target_subject uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    join public.students s on s.id = target_student and s.school_id = p.school_id and s.active = true
+    where p.id = auth.uid()
+      and p.role = 'teacher'
+      and p.active = true
+      and exists (select 1 from public.teacher_students ts where ts.teacher_id = p.id and ts.student_id = target_student)
+      and exists (select 1 from public.teacher_subjects tsub where tsub.teacher_id = p.id and tsub.subject_id = target_subject)
+  )
+$$;
+
 alter table public.schools enable row level security;
 alter table public.profiles enable row level security;
 alter table public.classes enable row level security;
@@ -390,7 +409,11 @@ for select using (
 
 drop policy if exists "teachers insert notices for assigned students" on public.teacher_parent_notices;
 create policy "teachers insert notices for assigned students" on public.teacher_parent_notices
-for insert with check (teacher_id = auth.uid() and public.can_read_student(student_id));
+for insert with check (
+  teacher_id = auth.uid()
+  and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'teacher' and p.active = true)
+  and exists (select 1 from public.teacher_students ts where ts.teacher_id = auth.uid() and ts.student_id = teacher_parent_notices.student_id)
+);
 
 drop policy if exists "authorized read support profiles" on public.student_support_profiles;
 create policy "authorized read support profiles" on public.student_support_profiles
@@ -411,7 +434,7 @@ for select using (public.can_read_student(student_id));
 
 drop policy if exists "teachers insert continuous assessments" on public.continuous_assessments;
 create policy "teachers insert continuous assessments" on public.continuous_assessments
-for insert with check (teacher_id = auth.uid() and public.can_teacher_grade(student_id, subject_id, (select c.id from public.chapters c where c.subject_id = continuous_assessments.subject_id limit 1)));
+for insert with check (teacher_id = auth.uid() and public.can_teacher_assess(student_id, subject_id));
 
 drop policy if exists "authorized read pia plans" on public.pia_plans;
 create policy "authorized read pia plans" on public.pia_plans

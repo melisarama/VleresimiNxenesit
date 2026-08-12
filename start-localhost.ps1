@@ -4,6 +4,36 @@ $htmlPath = Join-Path $root 'index.html'
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $port)
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 
+function Import-DotEnv {
+    $envPath = Join-Path $root '.env'
+    if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) { return }
+    foreach ($line in [System.IO.File]::ReadAllLines($envPath)) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith('#') -or -not $trimmed.Contains('=')) { continue }
+        $name, $value = $trimmed.Split('=', 2)
+        $name = $name.Trim()
+        $value = $value.Trim().Trim('"').Trim("'")
+        if ($name -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+            [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+        }
+    }
+}
+
+function Get-BrowserConfigScript {
+    $url = [Environment]::GetEnvironmentVariable('SUPABASE_URL')
+    $key = [Environment]::GetEnvironmentVariable('SUPABASE_PUBLISHABLE_KEY')
+    if ([string]::IsNullOrWhiteSpace($url) -or [string]::IsNullOrWhiteSpace($key)) {
+        return "window.MESIMI_CONFIG = { supabaseUrl: '', supabasePublishableKey: '' };"
+    }
+    $data = @{
+        supabaseUrl = $url
+        supabasePublishableKey = $key
+    } | ConvertTo-Json -Compress
+    return "window.MESIMI_CONFIG = $data;"
+}
+
+Import-DotEnv
+
 function Send-Response {
     param($Stream, [int]$Status, [string]$StatusText, [string]$ContentType, [byte[]]$Body)
     $header = "HTTP/1.1 $Status $StatusText`r`nContent-Type: $ContentType`r`nContent-Length: $($Body.Length)`r`nCache-Control: no-store`r`nConnection: close`r`n`r`n"
@@ -32,7 +62,12 @@ function Get-StaticContentType {
 
 function Try-Send-StaticFile {
     param($Stream, [string]$RequestPath)
-    $relative = [System.Uri]::UnescapeDataString($RequestPath.TrimStart('/')).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+    $normalized = [System.Uri]::UnescapeDataString(($RequestPath -split '\?')[0].TrimStart('/')).Replace('\', '/')
+    if ($normalized -eq 'src/config.js') {
+        Send-Response $Stream 200 'OK' 'application/javascript; charset=utf-8' ($utf8.GetBytes((Get-BrowserConfigScript)))
+        return $true
+    }
+    $relative = $normalized.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
     if (-not ($relative.StartsWith('css' + [System.IO.Path]::DirectorySeparatorChar) -or $relative.StartsWith('src' + [System.IO.Path]::DirectorySeparatorChar))) {
         return $false
     }
