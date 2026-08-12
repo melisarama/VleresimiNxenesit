@@ -103,6 +103,10 @@ npm run functions:deploy
 
 Copy `.env.example` to `.env` for local Supabase function work.
 
+```powershell
+Copy-Item .env.example .env
+```
+
 For the static frontend, `start-localhost.ps1` reads `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from `.env` and serves them to the browser as `src/config.js`. Browser-safe Supabase publishable keys are not secrets, but keeping them out of `app.js` makes project switching cleaner.
 
 - `SUPABASE_URL`
