@@ -1,104 +1,192 @@
-# Vlerësimi i Nxënësit
+# Vlerësimi i Nxënësit / Mësim i Qartë
 
-Mobile-first prototype for teachers to track learning progress and receive accessibility-aware support for individual pupils.
+Mobile-first school pilot for Kosovo classrooms. The app keeps the original pastel/mobile prototype experience, but the first production hardening pass moves the project toward a Supabase-backed, role-based architecture.
 
-## Product idea
+## Current Status
 
-Mësim i Qartë helps teachers follow each pupil’s learning outcomes over time. Each pupil has an individual profile with learning preferences and authorised support information. Teachers can add subjects, chapters and grades, then receive practical learning suggestions in Albanian that account for the pupil’s profile. A dedicated pedagogical-support area provides a safe discussion space for teachers to reflect on classroom challenges; it is not a diagnostic or emergency service.
+As of this handoff, the repository can run locally against the hosted Supabase project configured in `.env`.
 
-## Run locally
+- Supabase CLI is installed locally through `package.json`; a global Supabase install is not required.
+- The hosted project has been linked and the current migrations have been pushed.
+- Teacher and parent demo logins have been verified against Supabase Auth.
+- Teacher post-login reads for profile, assigned subject, assigned students, grades, moods, support profiles, chapters, and teacher notices have been verified through the Supabase REST API.
+- Parent post-login reads for linked child, grades, moods, subject notices, and teacher notices have been verified through the Supabase REST API.
+- The browser app still needs more UI polish and workflow completion, but the core auth/data path is now usable for logic work.
 
-The **Mbështetja** assistant uses the OpenAI Responses API through the local PowerShell server. Set the API key only in the PowerShell window that starts the app; never add it to `index.html` or commit it to Git.
+## Current Architecture
+
+- `index.html` is now the document shell.
+- `css/styles.css` contains the preserved visual design.
+- `src/app.js` contains the browser application logic.
+- `supabase/migrations/` contains reproducible schema and RLS changes.
+- `supabase/functions/support/` contains the authenticated pedagogical AI endpoint.
+- `start-localhost.ps1` serves the static frontend and generates browser config from `.env`.
+- `package.json` contains local scripts for the frontend server, Supabase CLI, migrations, seed, and checks.
+- Supabase Auth is the identity layer; user role and school come from `profiles`, not from a frontend selector.
+
+## What This Pass Implements
+
+- Splits the previous monolithic HTML into separate HTML, CSS, and JavaScript files.
+- Removes browser localStorage as the write path for chapters, grades, parent mood updates, subject-specific parent notices, and teacher-to-parent notices.
+- Adds a multi-school schema target: schools, profiles, classes, students, relationships, subjects, chapters, grades, moods, notices, support profiles, continuous assessments, and PIA plans.
+- Adds RLS policies for parent, teacher, and school-admin boundaries.
+- Adds synthetic seed data for one school, one admin, two teachers, two parents, and three students.
+- Adds Auth repair and API grant migrations needed for the hosted Supabase Auth and PostgREST paths.
+- Moves the AI production path to a Supabase Edge Function with a small provider abstraction and server-side OpenAI configuration.
+- Removes invented analytics fallback data; empty progress views now say there is not enough data.
+- Stops opening the hard-coded demo PIA PDF as if it were a real student document.
+
+## Migration Notes
+
+The current migration sequence is:
+
+- `202608120001_school_pilot_schema.sql`: creates the pilot schema, helper functions, indexes, RLS policies, subjects, and assessment categories.
+- `202608120002_repair_demo_auth_users.sql`: repairs deterministic demo Auth users after early seed attempts, including email identities and non-null Auth token fields.
+- `202608120003_public_api_grants.sql`: grants authenticated API access to public tables while keeping RLS responsible for row-level authorization.
+
+The second migration exists because direct SQL inserts into Supabase Auth can leave fields in a state that causes `Database error querying schema` during login. Keep it while this dev project uses deterministic seeded demo users.
+
+## Local Frontend Run
+
+Install project tooling once:
 
 ```powershell
-$env:OPENAI_API_KEY="your-openai-api-key"
-powershell -ExecutionPolicy Bypass -File .\start-localhost.ps1
+npm install
 ```
 
-Open [http://localhost:8080](http://localhost:8080).
+Then start the app:
 
-The server uses `gpt-5.6` by default. To test another available model, set `$env:OPENAI_MODEL="model-name"` before starting the server. If the server was already running, stop it with `Ctrl+C` and start it again after setting the environment variable.
+```powershell
+npm run dev
+```
 
-Only the situation typed in **Mbështetja** is sent to the AI endpoint. Do not include a pupil's name, personal number, medical record, or other identifying information. For production, move the endpoint to an authenticated backend or Supabase Edge Function and complete the required child-privacy, retention, monitoring, and escalation review.
+Open `http://localhost:8080`.
 
-### Test on a phone
+The PowerShell server serves `index.html`, `css/`, and `src/`. It still includes the older local `/api/support` fallback, but the browser now calls the Supabase Edge Function for production AI.
 
-Connect the phone and computer to the same Wi-Fi, then run the script above. In a second PowerShell window, run `ipconfig | findstr /i "IPv4"`; open the matching Wi-Fi address with port 8080 on the phone, for example `http://192.168.1.25:8080/`. If Windows asks, allow PowerShell access on **Private networks** only.
+## Supabase Setup
 
-## Included in the prototype
+The Supabase CLI is installed as a local dev dependency through `package.json`; a global install is not required.
 
-- Pupil profiles, learning preferences, and protected support history.
-- Twelve school subjects with teacher-managed chapters and grade entry.
-- Identification of chapters below the target grade, with tailored support ideas.
-- Accessibility adaptations including read-aloud support and visual or written alternatives.
-- An Albanian pedagogical-support assistant for teacher discussions.
-- Parent mood notices with a general comment for all teachers and an optional subject-specific comment shown only in the selected teacher's subject view.
+For hosted Supabase work, log in, link the project, preview migrations, then push:
 
-The prototype keeps its demonstration data in the browser’s local storage.
+```powershell
+npm run supabase:login
+npm run supabase:link
+npm run db:push:dry
+npm run db:push
+```
 
-## Change log
+To load or re-apply `supabase/seed.sql` into the hosted project, run:
 
-### 2026-07-12
+```powershell
+npm run db:push:seed
+```
 
-- Split the parent's daily comment into two routed notices: a general comment delivered to every teacher and an optional subject-specific comment selected from the 12-subject list. Teacher mood views and histories always show the general message and reveal the specific message only when it matches the logged-in teacher's subject.
-- Connected only the teacher's **Mbështetja** chat to the OpenAI Responses API. Each **Dërgo** action now generates a new Albanian response from the teacher's exact situation, with possible causes, three immediate classroom actions and a short observation cue.
-- Added a server-side API proxy so the OpenAI key stays in PowerShell rather than being exposed in the browser, plus loading, error and retry-ready states in the chat.
-- Limited the AI request to the text typed in **Mbështetja** and documented privacy precautions for pupil data.
+If seed data changes do not appear to run again, create a migration for any required hosted-project repair. `supabase db push --include-seed` may update the remote seed hash without forcing old seed rows to be repaired the way a migration does.
 
-### 2026-07-11
+For a fully local Supabase stack with Docker, run:
 
-- Added a teacher-to-parent daily notice flow: the teacher can send a notice from the bottom of **Sot**, and the linked parent sees it in **Njoftim nga mësimdhënësi – sot**. Prototype notices are stored locally in the browser.
-- Added the same clickable PIA card to **Nxënësit → Historiku i mbështetjes**, with blank objective, adaptation and progress-measurement fields and access to Era Kola's cropped PIA document.
-- Refreshed the parent **Rezultati** view with matching pastel result cards and added a subject-by-subject progress card showing visual rise/support indicators and progress tracks.
-- Simplified the teacher's **Sot** view by removing the voice-help controls, automated notice, current-result card, resource card and current-task card; those teaching details remain available in their relevant sections.
-- Added Era Kola's supplied, cropped PIA PDF to the app. Selecting the PIA card opens only the saved document pages, while the objective, adaptation and progress-measurement values remain blank until they are completed from the plan.
-- Redesigned **Vlerësimi përfundimtar** folders to open a dedicated pupil analytics view, removing the empty selection slot. Each view includes a scannable PIA card and a subject report for the logged-in teacher with a line chart and topic-level indicators.
-- Updated the pedagogical assistant response flow: each teacher message now starts directly from the reported behavior, varies wording between turns, provides three immediate classroom tactics and exactly three context-sensitive bracketed follow-up tags; safety-risk wording routes to the school's protection and emergency protocol.
-- Added direct recognition of task-completion frustration, with classroom actions for task chunking, a nearby worked example and supported first-step validation.
-- Reframed the pedagogical assistant as a fast classroom-reaction tool: it now asks for the immediate situation and moves straight to concrete actions rather than a supportive conversational introduction.
-- Tightened assistant replies to strip conversational lead-ins before display, keeping the immediate one-sentence behavior analysis, three micro-interventions and exactly three action tags.
-- Labeled each assistant tactic list as **Veprimi i mësimdhënësit** so the immediate classroom steps are unmistakable.
-- Redesigned **Mbështetja** as a premium pedagogical AI conversation: student identity row, assistant avatar, refined chat bubbles, visual quick prompts, microphone control and a soft-amber emergency note.
-- Made the teacher's **Historiku** open the same monthly mood calendar and comment-summary panel used in the parent portal.
-- Expanded the teacher's **Sot** experience into a holistic pupil workspace with soft mint, coral and peach surfaces, a circular result indicator, assistive support actions and an interactive current-task card with audio and start controls.
-- Added a premium responsive teacher selected-pupil dashboard: a mint-to-peach glass layout keeps a single scrolling column, showing the pupil profile and mood first, followed by learning preferences and readable result-progress cards, with fixed bottom navigation and a mood-history control.
-- Reworked the parent's **Historiku** into a slide-in monthly mood history panel with emoji calendar cells for reported moods and date numbers for days without a report, date-stamped parent comments and a close control; the parent bottom navigation now remains fixed while the page scrolls.
-- Redesigned the parent sign-in screen with a premium lavender-and-seafoam glass treatment, a satin-gold P emblem, modern fields and a password-visibility control.
-- Redesigned the teacher sign-in screen with a premium lavender-and-blue glass treatment, a raised M emblem, modern input fields, and a password-visibility control.
-- Redesigned the access-selection screen with a premium pastel-glass presentation, stronger type hierarchy, a floating rounded panel, custom teacher and parent SVG icons, and an accessible purple hover/focus treatment.
-- Updated chapter grading so new grades are combined with prior grades and each chapter displays its calculated average.
-- Reduced **Mbështetja** to the pedagogical assistant alone, hiding the preference and result sections as well.
-- Restricted **Mbështetja** to the contextual content up to the pedagogical assistant, hiding all later page sections.
-- Updated the teacher's large mood display to use the same Twemoji icons as the parent mood selection.
-- Redesigned the parent's daily mood entry as separate mood and comment cards, with a non-scrolling grid of mood icons sourced from Twemoji's CDN.
-- Redesigned the teacher's mood card as **Humori**, with large parent-reported emoji, date, parent comment and arrows for browsing recorded previous days.
-- Made **Notimi** a dedicated teacher view with a NOTIMI headline, chapters and grade-entry controls, plus a return action to Nxënësit.
-- Streamlined **Nxënësit** by removing the pupil-work title, voice help, subject chooser, in-class mood selector and mood-linked resource suggestion. Added a **Notimi** access card for chapters and grade entry.
-- Reordered **Sot** so the selected pupil's short profile appears first, followed by the daily mood notice.
-- Expanded pupil learning preferences with reading, listening, movement and collaboration; resource suggestions and support methods now adapt to the selected preference as well as the daily mood.
-- Simplified the teacher's **Sot** view by moving the pupil-work title, support/individual-plan history, chapters and grade entry to **Nxënësit**.
-- Kept **Lëndët** inside the parent's results view, with a **Shiko më shumë** control that expands the 12-subject average list.
-- Moved **Humori sot** to the first position in the teacher's selected-pupil work view.
-- Added Supabase Auth sign-in for the seeded teacher and parent accounts. The teacher dashboard now reads its assigned subject, pupil, support profile, chapters, grades and daily mood from Supabase; parent mood updates are saved to Supabase.
-- Replaced the local server script with a localhost-only version for more reliable browser testing.
-- Redesigned the parent area with bottom navigation for **Sot** (daily mood, optional comment and saved history) and **Rezultati** (average and recent chapters). Teachers now see the parent’s daily mood and comment as read-only information for the selected pupil.
-- Updated the teacher's **Sot** flow: sign-in now opens only the pupil registry, and selecting a pupil opens a separate pupil-work view without the registry, with a return button.
-- Connected the prototype to its Supabase project using the browser-safe publishable key and added a visible connection-status check. The initial schema now includes subject, teacher, pupil, support-profile, chapter, grade and daily-mood tables protected by RLS.
-- Added a teacher sign-in form for first name, last name, assigned subject and a prototype 10-digit personal ID. The teacher dashboard now displays only the selected subject.
-- Added a top-level back arrow in the teacher dashboard to return to the access-choice screen.
-- Added a parent entry flow that requires a selected pupil and a prototype personal-ID verification step; production use requires secure server-side authentication.
-- Added a role-selection entry screen: teachers open the existing dashboard, while parents enter a placeholder area for the next phase.
-- Replaced **Sugjerime** with **Vlerësimi përfundimtar**, including a folder for each pupil and continuous-assessment summary.
-- Moved **Humori ditor** to the first navigation position and refreshed the navigation with larger, more prominent icons.
-- Added distinct pastel colours for each navigation icon to improve scanability.
-- Integrated the parent mood update into the **Sot** view as **Humori sot**, rather than a separate navigation item.
-- Reordered **Sot** so the pupil registry appears first, followed by the selected pupil’s profile and parent-provided mood notice.
-- Updated **Humori sot** to display and edit only the currently selected pupil’s parent notification.
-- Linked the in-class mood prompt to the selected pupil and their parent-provided daily mood.
-- Enabled local Wi-Fi testing by having the development server listen on the computer’s active IPv4 address.
-- Audited and strengthened text colours to meet WCAG 2.1 AA contrast requirements for normal-sized text.
-- Added **Humori ditor**, where parent-provided mood and brief daily comments can be reviewed for every pupil.
-- Restored the full teaching workflow for the **Sot** and **Nxënësit** views.
-- Kept **Mbështetja** focused on the pupil profile, current result and pedagogical AI assistant.
-- Added a current-result summary that highlights chapters below target and proposes profile-aware support methods.
-- Added local pupil registry, preferences, accessibility support, chapters, grades and Albanian pedagogical-assistant interactions.
+```powershell
+npm run supabase -- start
+npm run db:reset:local
+npm run functions:serve
+```
+
+Deploy the Edge Function with:
+
+```powershell
+npm run functions:deploy
+```
+
+## Environment Variables
+
+Copy `.env.example` to `.env` for local Supabase function work.
+
+For the static frontend, `start-localhost.ps1` reads `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from `.env` and serves them to the browser as `src/config.js`. Browser-safe Supabase publishable keys are not secrets, but keeping them out of `app.js` makes project switching cleaner.
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `AI_PROVIDER=openai`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `PORT` for the optional local PowerShell server
+
+Never put `OPENAI_API_KEY` or `SUPABASE_SERVICE_ROLE_KEY` in browser JavaScript.
+
+## Demo Accounts
+
+When using the seed/migrations in this dev project, each account uses password `DemoPilot123!`.
+
+- `admin.demo@mesimi.test`
+- `teacher.math@mesimi.test`
+- `teacher.lang@mesimi.test`
+- `parent.one@mesimi.test`
+- `parent.two@mesimi.test`
+
+These are synthetic demo accounts only. They are acceptable for local/dev testing, but should not be used for real school data.
+
+Verified logins:
+
+- `teacher.math@mesimi.test` / `DemoPilot123!`
+- `parent.one@mesimi.test` / `DemoPilot123!`
+
+## Security Model
+
+The schema uses `profiles.school_id` and relationship tables as the authorization source:
+
+- Parents read linked children through `parent_students`.
+- Teachers read assigned students through `teacher_students`.
+- Teachers can grade only assigned students in assigned subjects, and only when the chapter belongs to that subject.
+- Admins manage records only inside their own school.
+- Subject-specific parent notices are visible to the parent and to teachers assigned to that subject.
+- Teacher-to-parent notices are persisted in `teacher_parent_notices`.
+
+RLS must be tested with real authenticated parent, teacher, and admin users before any pilot deployment.
+
+The current dev smoke test has verified the happy path for the seeded teacher and parent. Cross-user denial cases still need to be manually tested before any pilot.
+
+## AI Endpoint
+
+`supabase/functions/support/index.ts`:
+
+- accepts authenticated teacher requests only,
+- strips obvious email/phone/name patterns before sending text to the provider,
+- handles immediate-risk wording conservatively,
+- uses an `AIProvider` interface with an OpenAI implementation,
+- requests structured JSON output for predictable UI rendering.
+
+The OpenAI API key is read only from Edge Function environment variables, following official OpenAI documentation guidance for environment-stored API keys and structured JSON outputs.
+
+## Intentionally Incomplete
+
+This is not yet production-ready.
+
+- The admin UI is not implemented in the browser yet, though the schema and policies support it.
+- The admin demo Auth user exists, but there is no admin screen yet.
+- Full session restoration and route protection still need a UI pass.
+- Multi-child parent switching is not yet exposed; the parent loader currently opens the first linked child.
+- PIA document upload/download is modeled but not wired to Supabase Storage.
+- Continuous assessment has schema and seed categories, but the teacher UI is not fully database-backed yet.
+- RLS happy paths have been checked for seeded parent and teacher accounts; denial cases still need testing.
+- The browser still contains some prototype-only helper interactions marked by text/alerts rather than complete workflows.
+
+## Test Checklist
+
+Before a school pilot, manually verify:
+
+- Parent, teacher, and admin login. Teacher and first parent demo logins are currently verified; admin UI is not built.
+- Invalid login and logout.
+- Parent A cannot read Student B.
+- Teacher A cannot read or grade unrelated students.
+- Teacher A cannot grade an unassigned subject.
+- Admin A cannot manage School B.
+- Parent mood upsert persists and can be updated for the same day.
+- Subject-specific parent notices are visible only to assigned subject teachers.
+- Teacher notices persist after logout/login.
+- AI requests require an authenticated teacher and no provider secret appears in frontend code.
+
+## Privacy And Legal Review
+
+This system handles child-related educational information. A school or operator still needs formal privacy, retention, access-control, safeguarding, and document-storage policies before real deployment.

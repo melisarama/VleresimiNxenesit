@@ -1,0 +1,22 @@
+{
+  "name": "mesim-i-qarte",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mobile-first Supabase-backed school pilot for Mësim i Qartë.",
+  "scripts": {
+    "dev": "powershell -ExecutionPolicy Bypass -File ./start-localhost.ps1",
+    "check:js": "node --check src/app.js",
+    "supabase": "supabase",
+    "supabase:login": "supabase login",
+    "supabase:link": "supabase link --project-ref fmrmhaujktucffeyezrh",
+    "db:push:dry": "supabase db push --dry-run",
+    "db:push": "supabase db push",
+    "db:push:seed": "supabase db push --include-seed",
+    "db:reset:local": "supabase db reset",
+    "functions:serve": "supabase functions serve support --env-file .env",
+    "functions:deploy": "supabase functions deploy support"
+  },
+  "devDependencies": {
+    "supabase": "^2.39.2"
+  }
+}

@@ -1,9 +1,38 @@
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $port = if ($env:PORT) { [int]$env:PORT } else { 8080 }
 $htmlPath = Join-Path $root 'index.html'
-$piaPath = Join-Path $root 'plani_individual_i_arsimit.pdf'
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $port)
 $utf8 = [System.Text.UTF8Encoding]::new($false)
+
+function Import-DotEnv {
+    $envPath = Join-Path $root '.env'
+    if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) { return }
+    foreach ($line in [System.IO.File]::ReadAllLines($envPath)) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith('#') -or -not $trimmed.Contains('=')) { continue }
+        $name, $value = $trimmed.Split('=', 2)
+        $name = $name.Trim()
+        $value = $value.Trim().Trim('"').Trim("'")
+        if ($name -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+            [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+        }
+    }
+}
+
+function Get-BrowserConfigScript {
+    $url = [Environment]::GetEnvironmentVariable('SUPABASE_URL')
+    $key = [Environment]::GetEnvironmentVariable('SUPABASE_PUBLISHABLE_KEY')
+    if ([string]::IsNullOrWhiteSpace($url) -or [string]::IsNullOrWhiteSpace($key)) {
+        return "window.MESIMI_CONFIG = { supabaseUrl: '', supabasePublishableKey: '' };"
+    }
+    $data = @{
+        supabaseUrl = $url
+        supabasePublishableKey = $key
+    } | ConvertTo-Json -Compress
+    return "window.MESIMI_CONFIG = $data;"
+}
+
+Import-DotEnv
 
 function Send-Response {
     param($Stream, [int]$Status, [string]$StatusText, [string]$ContentType, [byte[]]$Body)
@@ -19,6 +48,36 @@ function Send-Json {
     $statusText = if ($Status -eq 200) { 'OK' } elseif ($Status -eq 400) { 'Bad Request' } elseif ($Status -eq 503) { 'Service Unavailable' } else { 'Internal Server Error' }
     $bytes = $utf8.GetBytes(($Data | ConvertTo-Json -Depth 6 -Compress))
     Send-Response $Stream $Status $statusText 'application/json; charset=utf-8' $bytes
+}
+
+function Get-StaticContentType {
+    param([string]$Path)
+    switch ([System.IO.Path]::GetExtension($Path).ToLowerInvariant()) {
+        '.css' { 'text/css; charset=utf-8' }
+        '.js' { 'application/javascript; charset=utf-8' }
+        '.pdf' { 'application/pdf' }
+        default { 'application/octet-stream' }
+    }
+}
+
+function Try-Send-StaticFile {
+    param($Stream, [string]$RequestPath)
+    $normalized = [System.Uri]::UnescapeDataString(($RequestPath -split '\?')[0].TrimStart('/')).Replace('\', '/')
+    if ($normalized -eq 'src/config.js') {
+        Send-Response $Stream 200 'OK' 'application/javascript; charset=utf-8' ($utf8.GetBytes((Get-BrowserConfigScript)))
+        return $true
+    }
+    $relative = $normalized.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+    if (-not ($relative.StartsWith('css' + [System.IO.Path]::DirectorySeparatorChar) -or $relative.StartsWith('src' + [System.IO.Path]::DirectorySeparatorChar))) {
+        return $false
+    }
+    $candidate = [System.IO.Path]::GetFullPath((Join-Path $root $relative))
+    $rootFull = [System.IO.Path]::GetFullPath($root)
+    if (-not $candidate.StartsWith($rootFull, [System.StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        return $false
+    }
+    Send-Response $Stream 200 'OK' (Get-StaticContentType $candidate) ([System.IO.File]::ReadAllBytes($candidate))
+    return $true
 }
 
 function Get-SupportReply {
@@ -117,8 +176,8 @@ try {
                         Send-Json $stream 503 @{ error = 'Asistenti AI nuk mundi të përgjigjet tani. Kontrolloni lidhjen dhe çelësin API.' }
                     }
                 }
-            } elseif ($method -eq 'GET' -and $path -eq '/plani_individual_i_arsimit.pdf' -and (Test-Path $piaPath)) {
-                Send-Response $stream 200 'OK' 'application/pdf' ([System.IO.File]::ReadAllBytes($piaPath))
+            } elseif ($method -eq 'GET' -and (Try-Send-StaticFile $stream $path)) {
+                continue
             } else {
                 Send-Response $stream 200 'OK' 'text/html; charset=utf-8' ([System.IO.File]::ReadAllBytes($htmlPath))
             }
