@@ -665,9 +665,9 @@
       border-radius:32px 32px 0 0;
       background:linear-gradient(150deg,rgba(245,241,255,.98),rgba(239,248,255,.97) 58%,rgba(255,241,232,.94));
     }
-    #teacherApp .phone.today-view.no-selection header > .teacher-page-nav,
     #teacherApp .phone.today-view.no-selection header > .top,
     #teacherApp .phone.today-view.no-selection header > .profile { display:none !important; }
+    #teacherApp .phone.today-view.no-selection header > .teacher-page-nav { margin:18px 0 0; }
     #teacherApp .phone.today-view.no-selection .today-dashboard-header {
       display:grid;
       justify-items:center;
@@ -908,6 +908,7 @@
       font-size:23px;
       line-height:1;
     }
+    .student-folder-nav button:disabled { opacity:.42; cursor:not-allowed; box-shadow:none; }
     .student-folder-nav h1 {
       margin:0;
       color:#252d44;

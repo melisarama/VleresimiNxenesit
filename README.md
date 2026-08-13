@@ -95,6 +95,7 @@ The project is a functional prototype, but it is not yet ready for real school d
 
 ### 2026-08-13
 
+- Added step-by-step back and forward navigation across the teacher workflow.
 - Added a dedicated student folder dashboard with four accessible routes for the summary, academics and grades, PIA, and health history.
 - Connected the teacher and parent demo logins to Supabase.
 - Split the code into HTML, CSS, and JavaScript and added migrations/RLS.
