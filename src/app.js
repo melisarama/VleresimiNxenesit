@@ -87,7 +87,7 @@ const appConfig=window.MESIMI_CONFIG||{};
       const subjectName=firstSubject&&firstSubject.subjects?firstSubject.subjects.name:'Matematikë';
       activeSubjectId=firstSubject&&firstSubject.subjects?firstSubject.subjects.id:firstSubject?firstSubject.subject_id:null;
       const supportByStudent=Object.fromEntries((supportResult.data||[]).map(item=>[item.student_id,item]));
-      storedStudents.splice(0,storedStudents.length,...(studentResult.data||[]).map(item=>{const support=supportByStudent[item.id]||{}; return {id:item.id,class_id:item.class_id,name:item.first_name+' '+item.last_name,support:support.support_summary||'Pa mbështetje të shënuar',detail:support.support_summary||'',icon:'📋'};}));
+      storedStudents.splice(0,storedStudents.length,...(studentResult.data||[]).map(item=>{const support=supportByStudent[item.id]||{}; return {id:item.id,class_id:item.class_id,className:item.class_name||'Pa klasë',name:item.first_name+' '+item.last_name,support:support.support_summary||'Pa mbështetje të shënuar',detail:support.support_summary||'',icon:'📋'};}));
       Object.keys(dailyMoods).forEach(key=>delete dailyMoods[key]);
       Object.keys(moodHistory).forEach(key=>delete moodHistory[key]);
       (moodResult.data||[]).forEach(item=>{const student=storedStudents.find(row=>row.id===item.student_id); if(student){ if(!dailyMoods[student.name]) dailyMoods[student.name]={mood:item.mood,comment:item.parent_comment||''}; if(!moodHistory[student.name]) moodHistory[student.name]=[]; moodHistory[student.name].push({date:item.reported_on,mood:item.mood,comment:item.parent_comment||''}); }});
@@ -100,8 +100,51 @@ const appConfig=window.MESIMI_CONFIG||{};
       setTeacherSubject(subjectName);
       renderStudents(); renderEvaluationFolders(); renderDailyMoods();
     }
-    document.getElementById('continueTeacher').onclick=async()=>{ const email=document.getElementById('teacherEmail').value.trim(); const password=document.getElementById('teacherPassword').value; const status=document.getElementById('teacherLoginStatus'); if(!email||!password){status.textContent='Shkruani email-in dhe fjalëkalimin.';return;} status.textContent='Duke u kyçur…'; const {data,error}=await supabaseClient.auth.signInWithPassword({email,password}); if(error){status.textContent='Hyrja dështoi: '+error.message;return;} try {await loadTeacherData(data.user); const phone=document.getElementById('appPhone'); phone.classList.add('no-selection','registry-only'); phone.classList.remove('student-selected','support-active','evaluation-active'); document.getElementById('teacherLogin').classList.add('hidden'); document.getElementById('teacherApp').classList.remove('hidden'); document.getElementById('todayToggle').click();} catch(error){await supabaseClient.auth.signOut();status.textContent='Kjo llogari nuk është e autorizuar si mësimdhënës.';} };
-    function showStudent(student){ const initials=student.name.split(' ').map(part=>part[0]).join('').slice(0,2).toUpperCase(); const note=dailyMoods[student.name]; document.querySelector('#teacherApp header .profile h1').textContent=student.name; document.querySelector('#teacherApp header .profile .avatar').textContent=initials; document.getElementById('profileSubtitle').textContent='Klasa V-A · '+student.support; document.getElementById('selectedName').textContent=student.name; document.getElementById('selectedInitials').textContent=initials; document.getElementById('selectedSupport').textContent='Klasa V-A · '+student.support; document.getElementById('selectedMood').textContent=note ? note.mood+' · Njoftim nga prindi' : 'Pa njoftim nga prindi sot'; document.getElementById('todayMoodHeading').textContent='Si është '+student.name.split(' ')[0]+' sot?'; document.getElementById('moodStatus').textContent=note ? note.mood : 'Pa njoftim'; document.getElementById('supportTitle').textContent=student.support; document.getElementById('supportDetail').textContent=student.detail || 'Profil i ri; plotësohet nga stafi i autorizuar.'; document.getElementById('supportIcon').textContent=student.icon || '📋'; }
+    document.getElementById('continueTeacher').onclick=async()=>{ const email=document.getElementById('teacherEmail').value.trim(); const password=document.getElementById('teacherPassword').value; const status=document.getElementById('teacherLoginStatus'); if(!email||!password){status.textContent='Shkruani email-in dhe fjalëkalimin.';return;} status.textContent='Duke u kyçur…'; const {data,error}=await supabaseClient.auth.signInWithPassword({email,password}); if(error){status.textContent='Hyrja dështoi: '+error.message;return;} try {await loadTeacherData(data.user); const phone=document.getElementById('appPhone'); clearStudentFolderModes(phone); phone.classList.add('no-selection','registry-only'); phone.classList.remove('student-selected','support-active','evaluation-active'); document.getElementById('teacherLogin').classList.add('hidden'); document.getElementById('teacherApp').classList.remove('hidden'); document.getElementById('todayToggle').click();} catch(error){await supabaseClient.auth.signOut();status.textContent='Kjo llogari nuk është e autorizuar si mësimdhënës.';} };
+    function showStudent(student){ const initials=student.name.split(' ').map(part=>part[0]).join('').slice(0,2).toUpperCase(); const note=dailyMoods[student.name]; const classLabel='Klasa '+(student.className||'e pacaktuar'); document.querySelector('#teacherApp header .profile h1').textContent=student.name; document.querySelector('#teacherApp header .profile .avatar').textContent=initials; document.getElementById('profileSubtitle').textContent=classLabel+' · '+student.support; document.getElementById('selectedName').textContent=student.name; document.getElementById('selectedInitials').textContent=initials; document.getElementById('selectedSupport').textContent=classLabel+' · '+student.support; document.getElementById('selectedMood').textContent=note ? note.mood+' · Njoftim nga prindi' : 'Pa njoftim nga prindi sot'; document.getElementById('todayMoodHeading').textContent='Si është '+student.name.split(' ')[0]+' sot?'; document.getElementById('moodStatus').textContent=note ? note.mood : 'Pa njoftim'; document.getElementById('supportTitle').textContent=student.support; document.getElementById('supportDetail').textContent=student.detail || 'Profil i ri; plotësohet nga stafi i autorizuar.'; document.getElementById('supportIcon').textContent=student.icon || '📋'; }
+    const studentFolderModes=['folder-dashboard-active','folder-summary-view','folder-academic-view','folder-health-view'];
+    function clearStudentFolderModes(phone=document.getElementById('appPhone')){ phone.classList.remove(...studentFolderModes); }
+    function resetStudentWorkHeader(){ document.querySelector('.student-work-header h2').textContent='Puna me nxënësin'; document.querySelector('.student-work-header p').textContent='Të dhënat dhe vlerësimi i nxënësit të zgjedhur'; document.getElementById('backToRegistry').textContent='Regjistri'; }
+    function setTeacherNavigation(activeId){ ['todayToggle','registryToggle','supportToggle','evaluationToggle'].forEach(id=>document.getElementById(id).classList.toggle('active',id===activeId)); }
+    function renderStudentFolder(student){ const initials=student.name.split(' ').filter(Boolean).map(part=>part[0]).join('').slice(0,2).toUpperCase(); document.getElementById('studentFolderInitials').textContent=initials; document.getElementById('studentFolderName').textContent=student.name; document.getElementById('studentFolderClass').textContent='Klasa '+(student.className||'e pacaktuar'); }
+    function openStudentFolder(student=storedStudents[activeStudent]){
+      if(!student) return;
+      const phone=document.getElementById('appPhone');
+      clearStudentFolderModes(phone);
+      phone.classList.remove('no-selection','registry-only','today-view','support-active','evaluation-active','grading-active');
+      phone.classList.add('student-selected','students-view','folder-dashboard-active');
+      document.getElementById('registry').classList.remove('show');
+      document.getElementById('evaluationPanel').classList.remove('analytics-open');
+      resetStudentWorkHeader();
+      renderStudentFolder(student);
+      setTeacherNavigation('registryToggle');
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    function openStudentFolderDetail(mode){
+      const student=storedStudents[activeStudent];
+      if(!student) return;
+      const phone=document.getElementById('appPhone');
+      clearStudentFolderModes(phone);
+      phone.classList.remove('no-selection','registry-only','today-view','support-active','evaluation-active','grading-active');
+      phone.classList.add('student-selected','students-view','folder-'+mode+'-view');
+      const titles={summary:['Përmbledhja','Humori, preferencat dhe komunikimi'],academic:['Akademia & Notat','Kapitujt, notat dhe vlerësimi'],health:['Shëndetësia & Historiku','Të dhënat shëndetësore dhe mbështetja']};
+      const copy=titles[mode];
+      document.querySelector('.student-work-header h2').textContent=copy[0];
+      document.querySelector('.student-work-header p').textContent=copy[1];
+      document.getElementById('backToRegistry').textContent='← Dosja';
+      setTeacherNavigation('registryToggle');
+      renderDailyMoods();
+      renderChapters();
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    function returnToStudentRegistry(){
+      const phone=document.getElementById('appPhone');
+      clearStudentFolderModes(phone);
+      phone.classList.remove('student-selected','support-active','evaluation-active','grading-active','today-view');
+      phone.classList.add('no-selection','registry-only','students-view');
+      resetStudentWorkHeader();
+      document.getElementById('registryToggle').click();
+    }
     function openStudent(index,inStudentsView){
       const student=storedStudents[index];
       if(!student) return;
@@ -113,10 +156,9 @@ const appConfig=window.MESIMI_CONFIG||{};
       renderStudents();
       renderDailyMoods();
       if(inStudentsView){
-        phone.classList.remove('today-view');
-        phone.classList.add('students-view');
-        document.getElementById('registry').classList.add('show');
+        openStudentFolder(student);
       } else {
+        clearStudentFolderModes(phone);
         document.getElementById('todayToggle').click();
       }
     }
@@ -163,7 +205,7 @@ const appConfig=window.MESIMI_CONFIG||{};
       const view=document.getElementById('evaluationAnalyticsView');
       const chapters=chaptersBySubject[activeSubject]||[];
       if(!chapters.length){
-        view.innerHTML='<button class="btn analytics-back" type="button" id="closeEvaluationAnalytics">← Vlerësimi përfundimtar</button><section class="analytics-card"><div class="section-head"><div><p class="small muted">Raporti i lëndës</p><h2>'+escapeHtml(activeSubject)+'</h2></div><span class="badge">Pa të dhëna</span></div><p class="small muted">Nuk ka ende të dhëna të mjaftueshme.</p></section>';
+        view.innerHTML='<button class="btn analytics-back" type="button" id="closeEvaluationAnalytics">← Vlerësimi përfundimtar</button><section class="analytics-card pia"><div class="section-head"><div><h2>Plani Individual Arsimor</h2><p class="small muted">'+escapeHtml(student.name)+'</p></div><span class="badge">PIA</span></div><p class="small muted">Të dhënat PIA lexohen nga profili i autorizuar i nxënësit kur janë të regjistruara.</p></section><section class="analytics-card"><div class="section-head"><div><p class="small muted">Raporti i lëndës</p><h2>'+escapeHtml(activeSubject)+'</h2></div><span class="badge">Pa të dhëna</span></div><p class="small muted">Nuk ka ende të dhëna të mjaftueshme.</p></section>';
         panel.classList.add('analytics-open');
         document.getElementById('closeEvaluationAnalytics').onclick=()=>panel.classList.remove('analytics-open');
         return;
@@ -265,9 +307,11 @@ const appConfig=window.MESIMI_CONFIG||{};
       renderChapters();
     };
     document.getElementById('teacherBack').onclick=async()=>{ await supabaseClient.auth.signOut(); document.getElementById('teacherApp').classList.add('hidden'); document.getElementById('roleGate').classList.remove('hidden'); };
-    document.getElementById('backToRegistry').onclick=()=>document.getElementById('registryToggle').click();
-    document.getElementById('registryToggle').onclick=()=>{ const registry=document.getElementById('registry'); const phone=document.getElementById('appPhone'); phone.classList.remove('support-active','evaluation-active','today-view'); phone.classList.add('students-view'); if(phone.classList.contains('no-selection')) phone.classList.add('registry-only'); else phone.classList.remove('registry-only'); registry.classList.add('show'); document.getElementById('registryToggle').classList.add('active'); document.getElementById('supportToggle').classList.remove('active'); document.getElementById('todayToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.remove('active'); window.scrollTo({top:0,behavior:'smooth'}); };
-    document.getElementById('todayToggle').onclick=()=>{ const phone=document.getElementById('appPhone'); phone.classList.remove('support-active','evaluation-active','students-view'); phone.classList.add('today-view'); if(phone.classList.contains('no-selection')) phone.classList.add('registry-only'); else phone.classList.remove('registry-only'); document.getElementById('registry').classList.remove('show'); document.getElementById('todayToggle').classList.add('active'); document.getElementById('registryToggle').classList.remove('active'); document.getElementById('supportToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.remove('active'); updateTeacherClock(); renderTodayStudents(); window.scrollTo({top:0,behavior:'smooth'}); };
+    document.getElementById('backToRegistry').onclick=()=>{ const student=storedStudents[activeStudent]; if(document.getElementById('appPhone').classList.contains('student-selected')&&student) openStudentFolder(student); else document.getElementById('registryToggle').click(); };
+    document.getElementById('studentFolderBack').onclick=returnToStudentRegistry;
+    document.querySelectorAll('[data-folder-action]').forEach(button=>button.onclick=()=>{ const action=button.dataset.folderAction; const student=storedStudents[activeStudent]; if(!student) return; if(action==='pia'){ document.getElementById('evaluationToggle').click(); showEvaluationAnalytics(student); return; } openStudentFolderDetail(action); });
+    document.getElementById('registryToggle').onclick=()=>{ const registry=document.getElementById('registry'); const phone=document.getElementById('appPhone'); const student=storedStudents[activeStudent]; if(phone.classList.contains('student-selected')&&student){ openStudentFolder(student); return; } clearStudentFolderModes(phone); phone.classList.remove('support-active','evaluation-active','today-view'); phone.classList.add('students-view'); if(phone.classList.contains('no-selection')) phone.classList.add('registry-only'); else phone.classList.remove('registry-only'); registry.classList.add('show'); setTeacherNavigation('registryToggle'); window.scrollTo({top:0,behavior:'smooth'}); };
+    document.getElementById('todayToggle').onclick=()=>{ const phone=document.getElementById('appPhone'); clearStudentFolderModes(phone); phone.classList.remove('support-active','evaluation-active','students-view'); phone.classList.add('today-view'); if(phone.classList.contains('no-selection')) phone.classList.add('registry-only'); else phone.classList.remove('registry-only'); document.getElementById('registry').classList.remove('show'); setTeacherNavigation('todayToggle'); updateTeacherClock(); renderTodayStudents(); window.scrollTo({top:0,behavior:'smooth'}); };
     const chat=document.getElementById('supportChat');
     function addMessage(text,role){ const message=document.createElement('div'); message.className='message '+role; message.textContent=text; chat.appendChild(message); chat.scrollTop=chat.scrollHeight; return message; }
     function agentReply(text){ const lower=text.toLowerCase(); if(/vetëlënd|vetvras|suicid|rrezik|dhun/.test(lower)){ return 'Faleminderit që e ngritët këtë. Mos e trajtoni vetëm në chat: ndiqni menjëherë protokollin e mbrojtjes së fëmijës në shkollë, njoftoni personin përgjegjës dhe kontaktoni shërbimet emergjente lokale nëse ka rrezik të menjëhershëm.'; } if(/shpërqendr|vëmend/.test(lower)){ return 'Provoni një plan 10-minutësh: 1) jepni vetëm një udhëzim të shkurtër; 2) ndani detyrën në një hap; 3) ofroni një pauzë të shkurtër; 4) jepni përforcim specifik për hapin e përfunduar. Pastaj shënoni çfarë e ndihmoi më shumë.'; } if(/angazh|nuk po|refuz/.test(lower)){ return 'Filloni me një zgjedhje të vogël: “do të shkruash apo të vizatosh?”. Përdorni interesin e nxënësit dhe një objektiv shumë të arritshëm. Vëzhgoni nëse vështirësia lidhet me detyrën, mjedisin apo gjendjen emocionale.'; } if(/shik|vizual|lex/.test(lower)){ return 'Për profilin me mbështetje për shikimin, përdorni tekst të madh, kontrast të lartë, udhëzime të lexuara me zë dhe përshkrime të qarta të çdo materiali pamor. Kontrolloni me nxënësin nëse materiali dëgjohet dhe kuptohet me ritmin e duhur.'; } return 'Për të zgjedhur hapin e duhur, provoni të vëzhgoni: kur ndodh situata, çfarë e paraprin dhe çfarë e lehtëson. Mund të filloni me një përshtatje të vogël, ta provoni për disa ditë dhe pastaj ta diskutoni me ekipin pedagogjik ose profesionistin përkatës.'; }
@@ -319,8 +363,8 @@ Vëzhgoni: ${data.observationCue||'çfarë e ndihmon nxënësin.'}`;
     document.getElementById('sendSupport').onclick=sendSupport;
     document.getElementById('supportInput').addEventListener('keydown',event=>{ if(event.key==='Enter') sendSupport(); });
     document.querySelectorAll('[data-prompt]').forEach(button=>button.onclick=()=>{ document.getElementById('supportInput').value=button.dataset.prompt; sendSupport(); });
-    document.getElementById('supportToggle').onclick=()=>{ const panel=document.getElementById('supportPanel'); const phone=document.getElementById('appPhone'); phone.classList.remove('evaluation-active','today-view','students-view','registry-only'); phone.classList.add('support-active'); document.getElementById('registry').classList.remove('show'); panel.classList.add('show'); document.getElementById('supportToggle').classList.add('active'); document.getElementById('todayToggle').classList.remove('active'); document.getElementById('registryToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.remove('active'); window.scrollTo({top:0,behavior:'smooth'}); };
-    document.getElementById('evaluationToggle').onclick=()=>{ const phone=document.getElementById('appPhone'); phone.classList.remove('support-active','today-view','students-view','registry-only'); phone.classList.add('evaluation-active'); document.getElementById('todayToggle').classList.remove('active'); document.getElementById('registryToggle').classList.remove('active'); document.getElementById('supportToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.add('active'); renderEvaluationFolders(); window.scrollTo({top:0,behavior:'smooth'}); };
+    document.getElementById('supportToggle').onclick=()=>{ const panel=document.getElementById('supportPanel'); const phone=document.getElementById('appPhone'); clearStudentFolderModes(phone); phone.classList.remove('evaluation-active','today-view','students-view','registry-only'); phone.classList.add('support-active'); document.getElementById('registry').classList.remove('show'); panel.classList.add('show'); setTeacherNavigation('supportToggle'); window.scrollTo({top:0,behavior:'smooth'}); };
+    document.getElementById('evaluationToggle').onclick=()=>{ const phone=document.getElementById('appPhone'); clearStudentFolderModes(phone); phone.classList.remove('support-active','today-view','students-view','registry-only'); phone.classList.add('evaluation-active'); setTeacherNavigation('evaluationToggle'); renderEvaluationFolders(); window.scrollTo({top:0,behavior:'smooth'}); };
     document.getElementById('addStudent').onclick=()=>{ document.getElementById('newStudent').value=''; document.getElementById('studentCount').textContent=storedStudents.length+' nxënës'; alert('Shtimi i nxënësve bëhet nga administratori i shkollës, që të ruhen klasa, shkolla dhe autorizimet.'); };
     const parentMoods=['😊 E lumtur','😌 E qetë','😟 E shqetësuar','😵‍💫 E shpërqendruar','😔 E trishtuar','😠 E irrituar'];
     const parentMoodIcons={'😊 E lumtur':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f60a.svg','😌 E qetë':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f60c.svg','😟 E shqetësuar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f61f.svg','😵‍💫 E shpërqendruar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f635-200d-1f4ab.svg','😔 E trishtuar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f614.svg','😠 E irrituar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f620.svg'};
