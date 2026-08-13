@@ -23,9 +23,23 @@ const appConfig=window.MESIMI_CONFIG||{};
     const preferences = { writing:['Shkrim','Sugjerimet përfshijnë përgjigje të shkruara dhe fletë pune.','Fletë pune e shkruar: Thyesat','Ushtrime të shkruara me tekst të madh, që lexohen me zë sipas nevojës.'], drawing:['Vizatim','Sugjerimet përfshijnë skica, ngjyra dhe paraqitje vizuale.','Vizato thyesat','Krijo modele me forma dhe ngjyra; çdo hap shpjegohet edhe me zë.'], practice:['Praktikë','Sugjerimet përfshijnë detyra të shkurtra dhe prova praktike.','Mini-sfidë praktike: Thyesat','Tre ushtrime të shkurtra me objekte të përditshme dhe udhëzime me zë.'], reading:['Lexim','Sugjerimet përfshijnë tekste të shkurtra, të qarta dhe pyetje kuptimore.','Lexo dhe gjej idenë kryesore','Një tekst i shkurtër me fjalë kyçe të theksuara dhe tri pyetje të thjeshta.'], listening:['Dëgjim','Sugjerimet përfshijnë audio, udhëzime të lexuara me zë dhe ritëm të përshtatshëm.','Dëgjo dhe përgjigju','Një audio e shkurtër me pauza mes hapave dhe pyetje me përgjigje të shkurtra.'], movement:['Lëvizje','Sugjerimet përfshijnë aktivitet fizik të shkurtër dhe mësim përmes lëvizjes.','Stacione mësimore: Thyesat','Lëvizje mes tri stacioneve të shkurtra me një detyrë të qartë në secilin stacion.'], collaboration:['Bashkëpunim','Sugjerimet përfshijnë punë në çift ose grup të vogël me role të qarta.','Puno në çift: Thyesat','Një aktivitet në çift ku njëri shpjegon hapin dhe tjetri e kontrollon përgjigjen.'] };
     const moodData = { happy:['E lumtur','Sfida me zë: Thyesat','Një mini-sfidë e lexueshme me zë për të përdorur energjinë pozitive.'], calm:['E qetë',null,null], distracted:['E shpërqendruar','Hapa të shkurtër: Thyesat','Tre ushtrime shumë të shkurtra, të lexuara me zë, me pauzë pas çdo hapi.'], sad:['E trishtuar','Aktivitet i lehtë me zë','Një ushtrim i qetë, pa presion, me përforcim pozitiv dhe lexim të ngadaltë.'] };
     const studentBox = document.getElementById('studentList');
+    const todayStudentBox = document.getElementById('todayStudentList');
     const storedStudents = [];
     const dailyMoods = {};
     const moodHistory = {};
+    function updateTeacherClock(){
+      const now=new Date();
+      const weekdays=['E diel','E hënë','E martë','E mërkurë','E enjte','E premte','E shtunë'];
+      const months=['Janar','Shkurt','Mars','Prill','Maj','Qershor','Korrik','Gusht','Shtator','Tetor','Nëntor','Dhjetor'];
+      const hour=now.getHours();
+      const displayHour=String(hour%12||12).padStart(2,'0');
+      const minute=String(now.getMinutes()).padStart(2,'0');
+      const clock=document.getElementById('teacherTodayDate');
+      clock.dateTime=now.toISOString();
+      clock.textContent=weekdays[now.getDay()]+', '+now.getDate()+' '+months[now.getMonth()]+' '+now.getFullYear()+', '+displayHour+':'+minute+' '+(hour<12?'AM':'PM');
+    }
+    updateTeacherClock();
+    setInterval(updateTeacherClock,60000);
     function readParentNotice(raw){
       const fallback={general:typeof raw==='string'?raw:'',subject:'',specific:''};
       if(!raw||typeof raw!=='string'||raw.trim()[0]!=='{') return fallback;
@@ -80,13 +94,70 @@ const appConfig=window.MESIMI_CONFIG||{};
       const chapterRows=(chapterResult.data||[]).filter(item=>item.subject_id===activeSubjectId||(item.subjects&&item.subjects.name===subjectName));
       chaptersBySubject[subjectName]=chapterRows.map(chapter=>{const grades=(gradeResult.data||[]).filter(item=>item.chapter_id===chapter.id); const score=grades.length?grades.reduce((sum,item)=>sum+Number(item.score),0)/grades.length:0; return {id:chapter.id,subject_id:chapter.subject_id,name:chapter.name,score};});
       teacherNoticeRows.splice(0,teacherNoticeRows.length,...(teacherNoticeResult.data||[]));
-      document.getElementById('teacherName').textContent=profileResult.data.first_name+' '+profileResult.data.last_name;
+      const teacherFullName=profileResult.data.first_name+' '+profileResult.data.last_name;
+      document.getElementById('teacherName').textContent=teacherFullName;
+      document.getElementById('teacherWelcomeName').textContent=teacherFullName;
       setTeacherSubject(subjectName);
       renderStudents(); renderEvaluationFolders(); renderDailyMoods();
     }
     document.getElementById('continueTeacher').onclick=async()=>{ const email=document.getElementById('teacherEmail').value.trim(); const password=document.getElementById('teacherPassword').value; const status=document.getElementById('teacherLoginStatus'); if(!email||!password){status.textContent='Shkruani email-in dhe fjalëkalimin.';return;} status.textContent='Duke u kyçur…'; const {data,error}=await supabaseClient.auth.signInWithPassword({email,password}); if(error){status.textContent='Hyrja dështoi: '+error.message;return;} try {await loadTeacherData(data.user); const phone=document.getElementById('appPhone'); phone.classList.add('no-selection','registry-only'); phone.classList.remove('student-selected','support-active','evaluation-active'); document.getElementById('teacherLogin').classList.add('hidden'); document.getElementById('teacherApp').classList.remove('hidden'); document.getElementById('todayToggle').click();} catch(error){await supabaseClient.auth.signOut();status.textContent='Kjo llogari nuk është e autorizuar si mësimdhënës.';} };
-    function showStudent(student){ const initials=student.name.split(' ').map(part=>part[0]).join('').slice(0,2).toUpperCase(); const note=dailyMoods[student.name]; document.querySelector('h1').textContent=student.name; document.querySelector('.avatar').textContent=initials; document.getElementById('profileSubtitle').textContent='Klasa V-A · '+student.support; document.getElementById('selectedName').textContent=student.name; document.getElementById('selectedInitials').textContent=initials; document.getElementById('selectedSupport').textContent='Klasa V-A · '+student.support; document.getElementById('selectedMood').textContent=note ? note.mood+' · Njoftim nga prindi' : 'Pa njoftim nga prindi sot'; document.getElementById('todayMoodHeading').textContent='Si është '+student.name.split(' ')[0]+' sot?'; document.getElementById('moodStatus').textContent=note ? note.mood : 'Pa njoftim'; document.getElementById('supportTitle').textContent=student.support; document.getElementById('supportDetail').textContent=student.detail || 'Profil i ri; plotësohet nga stafi i autorizuar.'; document.getElementById('supportIcon').textContent=student.icon || '📋'; }
-    function renderStudents(){ studentBox.innerHTML=''; document.getElementById('studentCount').textContent=storedStudents.length+' nxënës'; storedStudents.forEach((student,index)=>{ const row=document.createElement('div'); row.className='student-row'+(index===activeStudent?' active':''); row.innerHTML='<div class="student-name"><strong>'+student.name+'</strong><span class="small muted">'+student.support+'</span></div><button class="btn">Hap</button>'; row.querySelector('button').onclick=()=>{ activeStudent=index; const phone=document.getElementById('appPhone'); const inStudentsView=document.getElementById('registryToggle').classList.contains('active'); phone.classList.remove('no-selection','registry-only'); phone.classList.add('student-selected'); showStudent(student); renderStudents(); renderDailyMoods(); if(inStudentsView){ phone.classList.remove('today-view'); phone.classList.add('students-view'); document.getElementById('registry').classList.add('show'); } else { document.getElementById('todayToggle').click(); } }; studentBox.appendChild(row); }); }
+    function showStudent(student){ const initials=student.name.split(' ').map(part=>part[0]).join('').slice(0,2).toUpperCase(); const note=dailyMoods[student.name]; document.querySelector('#teacherApp header .profile h1').textContent=student.name; document.querySelector('#teacherApp header .profile .avatar').textContent=initials; document.getElementById('profileSubtitle').textContent='Klasa V-A · '+student.support; document.getElementById('selectedName').textContent=student.name; document.getElementById('selectedInitials').textContent=initials; document.getElementById('selectedSupport').textContent='Klasa V-A · '+student.support; document.getElementById('selectedMood').textContent=note ? note.mood+' · Njoftim nga prindi' : 'Pa njoftim nga prindi sot'; document.getElementById('todayMoodHeading').textContent='Si është '+student.name.split(' ')[0]+' sot?'; document.getElementById('moodStatus').textContent=note ? note.mood : 'Pa njoftim'; document.getElementById('supportTitle').textContent=student.support; document.getElementById('supportDetail').textContent=student.detail || 'Profil i ri; plotësohet nga stafi i autorizuar.'; document.getElementById('supportIcon').textContent=student.icon || '📋'; }
+    function openStudent(index,inStudentsView){
+      const student=storedStudents[index];
+      if(!student) return;
+      activeStudent=index;
+      const phone=document.getElementById('appPhone');
+      phone.classList.remove('no-selection','registry-only');
+      phone.classList.add('student-selected');
+      showStudent(student);
+      renderStudents();
+      renderDailyMoods();
+      if(inStudentsView){
+        phone.classList.remove('today-view');
+        phone.classList.add('students-view');
+        document.getElementById('registry').classList.add('show');
+      } else {
+        document.getElementById('todayToggle').click();
+      }
+    }
+    function todayMoodSummary(student){
+      const note=dailyMoods[student.name];
+      if(!note) return '○ Pa njoftim nga prindi sot';
+      const notice=readParentNotice(note.comment);
+      const comment=notice.general.trim();
+      return note.mood+(comment?' ('+comment+')':'');
+    }
+    function renderTodayStudents(){
+      todayStudentBox.innerHTML='';
+      const countLabel=storedStudents.length===1?'1 nxënës':storedStudents.length+' nxënës';
+      document.getElementById('todayStudentCount').textContent=countLabel;
+      if(!storedStudents.length){
+        todayStudentBox.innerHTML='<p class="today-empty">Nuk ka nxënës të regjistruar në këtë klasë.</p>';
+        return;
+      }
+      storedStudents.forEach((student,index)=>{
+        const initials=student.name.split(' ').filter(Boolean).map(part=>part[0]).join('').slice(0,2).toUpperCase();
+        const card=document.createElement('button');
+        card.className='today-student-card';
+        card.type='button';
+        card.setAttribute('aria-label','Hap profilin e '+student.name);
+        card.innerHTML='<span class="today-student-avatar" aria-hidden="true">'+escapeHtml(initials)+'</span><span class="today-student-copy"><strong>'+escapeHtml(student.name)+'</strong><span>'+escapeHtml(todayMoodSummary(student))+'</span></span>';
+        card.onclick=()=>openStudent(index,false);
+        todayStudentBox.appendChild(card);
+      });
+    }
+    function renderStudents(){
+      studentBox.innerHTML='';
+      document.getElementById('studentCount').textContent=storedStudents.length+' nxënës';
+      storedStudents.forEach((student,index)=>{
+        const row=document.createElement('div');
+        row.className='student-row'+(index===activeStudent?' active':'');
+        row.innerHTML='<div class="student-name"><strong>'+escapeHtml(student.name)+'</strong><span class="small muted">'+escapeHtml(student.support)+'</span></div><button class="btn">Hap</button>';
+        row.querySelector('button').onclick=()=>openStudent(index,document.getElementById('registryToggle').classList.contains('active'));
+        studentBox.appendChild(row);
+      });
+      renderTodayStudents();
+    }
     function showEvaluationAnalytics(student){
       const panel=document.getElementById('evaluationPanel');
       const view=document.getElementById('evaluationAnalyticsView');
@@ -196,7 +267,7 @@ const appConfig=window.MESIMI_CONFIG||{};
     document.getElementById('teacherBack').onclick=async()=>{ await supabaseClient.auth.signOut(); document.getElementById('teacherApp').classList.add('hidden'); document.getElementById('roleGate').classList.remove('hidden'); };
     document.getElementById('backToRegistry').onclick=()=>document.getElementById('registryToggle').click();
     document.getElementById('registryToggle').onclick=()=>{ const registry=document.getElementById('registry'); const phone=document.getElementById('appPhone'); phone.classList.remove('support-active','evaluation-active','today-view'); phone.classList.add('students-view'); if(phone.classList.contains('no-selection')) phone.classList.add('registry-only'); else phone.classList.remove('registry-only'); registry.classList.add('show'); document.getElementById('registryToggle').classList.add('active'); document.getElementById('supportToggle').classList.remove('active'); document.getElementById('todayToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.remove('active'); window.scrollTo({top:0,behavior:'smooth'}); };
-    document.getElementById('todayToggle').onclick=()=>{ const phone=document.getElementById('appPhone'); phone.classList.remove('support-active','evaluation-active','students-view'); phone.classList.add('today-view'); if(phone.classList.contains('no-selection')) phone.classList.add('registry-only'); else phone.classList.remove('registry-only'); document.getElementById('registry').classList.remove('show'); document.getElementById('todayToggle').classList.add('active'); document.getElementById('registryToggle').classList.remove('active'); document.getElementById('supportToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.remove('active'); window.scrollTo({top:0,behavior:'smooth'}); };
+    document.getElementById('todayToggle').onclick=()=>{ const phone=document.getElementById('appPhone'); phone.classList.remove('support-active','evaluation-active','students-view'); phone.classList.add('today-view'); if(phone.classList.contains('no-selection')) phone.classList.add('registry-only'); else phone.classList.remove('registry-only'); document.getElementById('registry').classList.remove('show'); document.getElementById('todayToggle').classList.add('active'); document.getElementById('registryToggle').classList.remove('active'); document.getElementById('supportToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.remove('active'); updateTeacherClock(); renderTodayStudents(); window.scrollTo({top:0,behavior:'smooth'}); };
     const chat=document.getElementById('supportChat');
     function addMessage(text,role){ const message=document.createElement('div'); message.className='message '+role; message.textContent=text; chat.appendChild(message); chat.scrollTop=chat.scrollHeight; return message; }
     function agentReply(text){ const lower=text.toLowerCase(); if(/vetëlënd|vetvras|suicid|rrezik|dhun/.test(lower)){ return 'Faleminderit që e ngritët këtë. Mos e trajtoni vetëm në chat: ndiqni menjëherë protokollin e mbrojtjes së fëmijës në shkollë, njoftoni personin përgjegjës dhe kontaktoni shërbimet emergjente lokale nëse ka rrezik të menjëhershëm.'; } if(/shpërqendr|vëmend/.test(lower)){ return 'Provoni një plan 10-minutësh: 1) jepni vetëm një udhëzim të shkurtër; 2) ndani detyrën në një hap; 3) ofroni një pauzë të shkurtër; 4) jepni përforcim specifik për hapin e përfunduar. Pastaj shënoni çfarë e ndihmoi më shumë.'; } if(/angazh|nuk po|refuz/.test(lower)){ return 'Filloni me një zgjedhje të vogël: “do të shkruash apo të vizatosh?”. Përdorni interesin e nxënësit dhe një objektiv shumë të arritshëm. Vëzhgoni nëse vështirësia lidhet me detyrën, mjedisin apo gjendjen emocionale.'; } if(/shik|vizual|lex/.test(lower)){ return 'Për profilin me mbështetje për shikimin, përdorni tekst të madh, kontrast të lartë, udhëzime të lexuara me zë dhe përshkrime të qarta të çdo materiali pamor. Kontrolloni me nxënësin nëse materiali dëgjohet dhe kuptohet me ritmin e duhur.'; } return 'Për të zgjedhur hapin e duhur, provoni të vëzhgoni: kur ndodh situata, çfarë e paraprin dhe çfarë e lehtëson. Mund të filloni me një përshtatje të vogël, ta provoni për disa ditë dhe pastaj ta diskutoni me ekipin pedagogjik ose profesionistin përkatës.'; }
@@ -248,8 +319,8 @@ Vëzhgoni: ${data.observationCue||'çfarë e ndihmon nxënësin.'}`;
     document.getElementById('sendSupport').onclick=sendSupport;
     document.getElementById('supportInput').addEventListener('keydown',event=>{ if(event.key==='Enter') sendSupport(); });
     document.querySelectorAll('[data-prompt]').forEach(button=>button.onclick=()=>{ document.getElementById('supportInput').value=button.dataset.prompt; sendSupport(); });
-    document.getElementById('supportToggle').onclick=()=>{ const panel=document.getElementById('supportPanel'); document.getElementById('appPhone').classList.remove('evaluation-active'); document.getElementById('appPhone').classList.add('support-active'); document.getElementById('registry').classList.remove('show'); panel.classList.add('show'); document.getElementById('supportToggle').classList.add('active'); document.getElementById('todayToggle').classList.remove('active'); document.getElementById('registryToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.remove('active'); window.scrollTo({top:0,behavior:'smooth'}); };
-    document.getElementById('evaluationToggle').onclick=()=>{ document.getElementById('appPhone').classList.remove('support-active'); document.getElementById('appPhone').classList.add('evaluation-active'); document.getElementById('todayToggle').classList.remove('active'); document.getElementById('registryToggle').classList.remove('active'); document.getElementById('supportToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.add('active'); renderEvaluationFolders(); window.scrollTo({top:0,behavior:'smooth'}); };
+    document.getElementById('supportToggle').onclick=()=>{ const panel=document.getElementById('supportPanel'); const phone=document.getElementById('appPhone'); phone.classList.remove('evaluation-active','today-view','students-view','registry-only'); phone.classList.add('support-active'); document.getElementById('registry').classList.remove('show'); panel.classList.add('show'); document.getElementById('supportToggle').classList.add('active'); document.getElementById('todayToggle').classList.remove('active'); document.getElementById('registryToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.remove('active'); window.scrollTo({top:0,behavior:'smooth'}); };
+    document.getElementById('evaluationToggle').onclick=()=>{ const phone=document.getElementById('appPhone'); phone.classList.remove('support-active','today-view','students-view','registry-only'); phone.classList.add('evaluation-active'); document.getElementById('todayToggle').classList.remove('active'); document.getElementById('registryToggle').classList.remove('active'); document.getElementById('supportToggle').classList.remove('active'); document.getElementById('evaluationToggle').classList.add('active'); renderEvaluationFolders(); window.scrollTo({top:0,behavior:'smooth'}); };
     document.getElementById('addStudent').onclick=()=>{ document.getElementById('newStudent').value=''; document.getElementById('studentCount').textContent=storedStudents.length+' nxënës'; alert('Shtimi i nxënësve bëhet nga administratori i shkollës, që të ruhen klasa, shkolla dhe autorizimet.'); };
     const parentMoods=['😊 E lumtur','😌 E qetë','😟 E shqetësuar','😵‍💫 E shpërqendruar','😔 E trishtuar','😠 E irrituar'];
     const parentMoodIcons={'😊 E lumtur':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f60a.svg','😌 E qetë':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f60c.svg','😟 E shqetësuar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f61f.svg','😵‍💫 E shpërqendruar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f635-200d-1f4ab.svg','😔 E trishtuar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f614.svg','😠 E irrituar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f620.svg'};

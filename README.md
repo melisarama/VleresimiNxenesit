@@ -28,6 +28,9 @@ As of this handoff, the repository can run locally against the hosted Supabase p
 
 ### 2026-08-13
 
+- Rebuilt the teacher's initial `Sot` view as a focused mobile dashboard with a live Albanian date/time, personalized welcome banner, and a clean daily student list.
+- Added database-backed parent mood summaries directly to each student card while keeping the full student tools under `Nxënësit`.
+- Replaced the teacher bottom-navigation symbols with accessible custom SVG icons and preserved direct access to all four teacher sections.
 - Redesigned the role-selection landing page with a solid white central panel over a pastel educational line-art tapestry.
 - Added an original VN emblem with wings and a heart, plus custom vector illustrations for the teacher and parent access paths.
 - Improved mobile reflow, keyboard focus states, contrast, reduced-motion support, and visual hierarchy without changing the existing role navigation logic.
