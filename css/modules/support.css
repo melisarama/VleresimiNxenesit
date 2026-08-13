@@ -150,6 +150,8 @@
     #parentDashboard #parentResultsPanel > .card:nth-of-type(1) { background:linear-gradient(145deg,#e8f7f0,#fffdfa); }
     #parentDashboard #parentResultsPanel > .card:nth-of-type(2) { background:linear-gradient(145deg,#f2edff,#fff9f4); }
     .parent-progress-card { padding:15px; margin-top:12px; background:linear-gradient(145deg,#fff1e9,#f8fffb); }
+    .parent-grade-messages { display:grid; gap:8px; margin-top:12px; }
+    .parent-grade-messages p { padding:10px; border-left:3px solid #27735f; color:#46534e; background:#edf6f2; font-size:12px; line-height:1.5; }
     .parent-trend-list { display:grid; gap:9px; margin-top:12px; }
     .parent-trend-row { display:grid; grid-template-columns:1fr auto; gap:4px 10px; padding:10px; border-radius:13px; background:rgba(255,255,255,.7); }
     .parent-trend-track { grid-column:1/-1; height:6px; overflow:hidden; border-radius:99px; background:#e9ecea; }
@@ -171,14 +173,6 @@
     .evaluation-panel.analytics-open .evaluation-analytics { display:grid; }
     .analytics-back { justify-self:start; }
     .analytics-card { padding:18px; border:0; border-radius:22px; background:linear-gradient(145deg,#fff,#f4fbf7); box-shadow:7px 8px 20px rgba(82,101,105,.12),-5px -5px 14px rgba(255,255,255,.9); }
-    .analytics-card.pia { background:linear-gradient(145deg,#fffdf8,#fff0e7); }
-    .analytics-card.pia { position:relative; cursor:pointer; }
-    .analytics-card.pia::after { content:'Klikoni për të hapur PIA-n'; display:block; margin-top:12px; color:#694da6; font-size:12px; font-weight:750; }
-    .pia-grid { display:grid; gap:10px; margin-top:12px; }
-    .pia-field { padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.72); }
-    .pia-field span { display:block; color:#5d5868; font-size:11px; font-weight:750; }
-    .pia-field strong { display:block; margin-top:3px; color:#2b3441; }
-    .pia-field strong { min-height:20px; color:transparent; user-select:none; }
     .analytics-subject-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .analytics-chart { width:100%; height:auto; margin-top:12px; }
     .analytics-topic { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; padding-top:10px; border-top:1px solid #dfe9e4; }

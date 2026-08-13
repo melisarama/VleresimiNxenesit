@@ -8,12 +8,13 @@ A mobile-first application for collaboration between teachers and parents in Kos
 
 - Student registry and individual student folder.
 - Daily mood and notification from the parent.
+- Parent-message inbox with persistent read status and confirmed deletion.
 - Grading by subject and chapter.
 - Period-aware assessments tied to the student's class school year.
 - Private material publishing by class, subject, or selected students.
 - Automatic image compression and 90/120-day material retention.
 - Learning preferences and support profile.
-- Individual Education Plan (PIA) and continuous assessment.
+- Continuous chapter assessment and final grades by academic period.
 - AI pedagogical assistant for immediate classroom situations.
 
 ### For Parents
@@ -125,7 +126,7 @@ Teachers can retain materials for 90 or 120 days. Permanent retention is intenti
 
 ## Status
 
-The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow is implemented. Before the pilot, PIA storage, complete adversarial RLS testing, production email delivery, and a review of children's data privacy must be completed.
+The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow is implemented. Before the pilot, complete adversarial RLS testing, production email delivery, and a review of children's data privacy must be completed.
 
 ## Changelog
 
@@ -135,6 +136,10 @@ The project is a functional prototype, but it is not yet ready for real school d
 - Added administrator controls for creating, activating, and closing periods.
 - Added administrator controls for creating and deactivating school subjects while preserving historical data.
 - Added period-aware teacher assessment controls and parent grade queries.
+- Connected the teacher inbox to parent messages with secure mark-as-read and delete actions.
+- Added database-backed chapter assessments, final grades, inbox replies, and teacher email preferences.
+- Replaced the chapter-completion lock with typed student-name confirmation for final grades.
+- Removed the unused PIA data model.
 
 ### 2026-08-13
 
@@ -144,7 +149,7 @@ The project is a functional prototype, but it is not yet ready for real school d
 - Added secure teacher/parent invitations through the `admin-users` Edge Function.
 - Simplified the selected-student Today view around the parent update, teacher mood check-in, and a redesigned parent-notice composer.
 - Added step-by-step back and forward navigation across the teacher workflow.
-- Added a dedicated student folder dashboard with four accessible routes for the summary, academics and grades, PIA, and health history.
+- Added a dedicated student folder dashboard for summary, academics, and support information.
 - Connected the teacher and parent demo logins to Supabase.
 - Split the code into HTML, CSS, and JavaScript and added migrations/RLS.
 - Added the pedagogical assistant through a Supabase Edge Function.

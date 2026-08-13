@@ -117,7 +117,6 @@
     }
     .folder-summary-action { background:linear-gradient(145deg,#eee9ff,#f8f6ff); }
     .folder-academic-action { background:linear-gradient(145deg,#e4f2ff,#f5faff); }
-    .folder-pia-action { background:linear-gradient(145deg,#ffe9dd,#fff7f1); }
     .folder-health-action { background:linear-gradient(145deg,#e6f6ee,#f6fcf9); }
     .student-folder-icon {
       width:50px;
@@ -131,7 +130,6 @@
       box-shadow:0 7px 15px rgba(81,76,116,.09);
     }
     .folder-academic-action .student-folder-icon { color:#326985; }
-    .folder-pia-action .student-folder-icon { color:#98593f; }
     .folder-health-action .student-folder-icon { color:#34715a; }
     .student-folder-icon svg {
       width:27px;

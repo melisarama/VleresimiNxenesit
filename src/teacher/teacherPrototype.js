@@ -6,20 +6,15 @@ import {
   prepareMaterialFiles,
   publishTeacherMaterial
 } from '../services/teacherMaterialService.js';
-
-const sampleStudents = [
-  { id: 'sample-1', name: 'Ana Demo', className: 'V-A', support: 'Tekst i madh dhe udhëzime të lexuara', mood: 'E qetë' },
-  { id: 'sample-2', name: 'Erion Kola', className: 'V-A', support: 'Pa përshtatje të shënuara', mood: 'Pa njoftim sot' },
-  { id: 'sample-3', name: 'Lira Gashi', className: 'V-B', support: 'Ritëm i qetë dhe hapa të shkurtër', mood: 'E lumtur' },
-  { id: 'sample-4', name: 'Dion Berisha', className: 'V-B', support: 'Pa përshtatje të shënuara', mood: 'Pak i lodhur' }
-];
-
-const sampleMessages = [
-  { id: 1, unread: true, parent: 'Arta Demo', student: 'Ana Demo', subject: 'Humori i Anës sot', time: '09:12', body: 'Përshëndetje, Ana ka fjetur pak mbrëmë. Mund të ketë nevojë për pak më shumë kohë gjatë ushtrimeve të para.' },
-  { id: 2, unread: true, parent: 'Blerim Kola', student: 'Erion Kola', subject: 'Pyetje për ushtrimet', time: 'Dje', body: 'A mund të na tregoni cilat ushtrime duhet të përsërisim para vlerësimit të së premtes?' },
-  { id: 3, unread: true, parent: 'Mira Gashi', student: 'Lira Gashi', subject: 'Njoftim i shkurtër', time: 'Hën', body: 'Lira do të largohet tridhjetë minuta më herët të mërkurën për një takim.' },
-  { id: 4, unread: false, parent: 'Arta Demo', student: 'Ana Demo', subject: 'Faleminderit', time: '8 gusht', body: 'Faleminderit për materialet dhe sqarimin e djeshëm.' }
-];
+import {
+  deleteParentNotice,
+  createTeacherChapter,
+  markParentNoticeRead,
+  replyToParentNotice,
+  saveChapterAssessment,
+  saveTeacherFinalGrade,
+  saveTeacherNotificationPreferences
+} from '../services/teacherService.js';
 
 const titles = {
   students: ['Regjistri i klasave', 'Nxënësit'],
@@ -41,21 +36,19 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   const root = document.getElementById('teacherPrototype');
   if (!root) return { setData() {} };
 
-  let students = [...sampleStudents];
-  let selectedStudent = students[0];
-  let messages = sampleMessages.map(message => ({ ...message }));
+  let students = [];
+  let selectedStudent = null;
+  let messages = [];
   let unreadOnly = false;
+  let activeMessageId = null;
   let materialContext = { teacherId: null, schoolId: null, subjects: [] };
   let teacherMaterials = [];
   let materialWarnings = [];
   let academicPeriods = [];
   let selectedAcademicPeriodId = null;
-  const proficiency = new Map([
-    ['Thyesat', '4'],
-    ['Numrat dhjetorë', '3'],
-    ['Gjeometria', ''],
-    ['Problemet me fjalë', '2']
-  ]);
+  let selectedAssessmentSubjectId = null;
+  let assessmentContext = { chapters: [], assessments: [], finalGrades: [] };
+  let notificationPreferences = null;
 
   const panels = [...root.querySelectorAll('[data-teacher-panel]')];
   const navButtons = [...root.querySelectorAll('[data-teacher-view]')];
@@ -78,9 +71,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   root.querySelector('[data-open-teacher-notifications]').addEventListener('click', () => showPanel('notifications'));
 
   function studentMood(student) {
-    if (student.mood) return student.mood;
-    const position = students.findIndex(item => item.id === student.id);
-    return ['E qetë', 'Pa njoftim sot', 'E lumtur', 'Pak i lodhur'][Math.max(position, 0) % 4];
+    return student.mood || 'Pa gjendje të raportuar sot';
   }
 
   function renderStudents(query = '') {
@@ -123,7 +114,8 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     selectedStudent = student;
     document.getElementById('teacherFolderAvatar').textContent = initials(student.name);
     document.getElementById('teacherFolderName').textContent = student.name;
-    document.getElementById('teacherFolderMeta').textContent = `Klasa ${student.className || 'Pa klasë'} · Matematikë`;
+    const subjectNames = materialContext.subjects.map(subject => subject.name).join(', ');
+    document.getElementById('teacherFolderMeta').textContent = `Klasa ${student.className || 'Pa klasë'}${subjectNames ? ` · ${subjectNames}` : ''}`;
     title.textContent = 'Dosja e nxënësit';
     kicker.textContent = student.name;
     showPanel('student-folder', false);
@@ -138,61 +130,146 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   }
 
   function renderMoodDetail() {
-    return `${detailHeading('Humori ditor dhe historiku', `Njoftimet për ${selectedStudent.name} nga prindi.`)}<div class="teacher-mood-summary"><article class="teacher-current-mood"><small>Sot · 08:05</small><span>😌</span><strong>${escapeHtml(studentMood(selectedStudent))}</strong><p>“Ka fjetur pak dhe mund të ketë nevojë për një fillim më të qetë.”</p></article><div class="teacher-history-list"><article><time>12 gusht</time><span>😊</span><div><strong>E lumtur</strong><p>Pa koment shtesë.</p></div></article><article><time>11 gusht</time><span>😵</span><div><strong>E lodhur</strong><p>Ka pasur një mbrëmje të gjatë.</p></div></article><article><time>10 gusht</time><span>😌</span><div><strong>E qetë</strong><p>Pa koment shtesë.</p></div></article></div></div>`;
+    const heading = detailHeading('Humori ditor dhe historiku', `Njoftimet për ${selectedStudent.name} nga prindi.`);
+    if (!selectedStudent.mood) return `${heading}<div class="teacher-detail-empty"><strong>Pa gjendje të raportuar sot</strong><p>Prindi nuk ka dërguar ende një përditësim për ditën e sotme.</p></div>`;
+    return `${heading}<div class="teacher-mood-summary"><article class="teacher-current-mood"><small>Sot</small><strong>${escapeHtml(selectedStudent.mood)}</strong><p>${escapeHtml(selectedStudent.moodComment || 'Pa koment shtesë.')}</p></article><div class="teacher-detail-empty"><strong>Nuk ka hyrje të mëparshme</strong><p>Historiku është bosh.</p></div></div>`;
   }
 
   function renderPreferencesDetail() {
-    return `${detailHeading('Preferencat dhe komunikimi', 'Udhëzime të shkurtra, vetëm për përdorim gjatë mësimit.')}<div class="teacher-preference-grid"><article><span>Mënyra e të nxënit</span><h3>Vizuale dhe praktike</h3><p>Përdorni shembuj në tabelë dhe lejoni një provë konkrete para punës së pavarur.</p></article><article><span>Gjuha e komunikimit</span><h3>Fjali të shkurtra dhe të drejtpërdrejta</h3><p>Jepni një udhëzim në herë dhe kontrolloni kuptimin pa e nxituar përgjigjen.</p></article><article><span>Formati i materialit</span><h3>Tekst i madh dhe kontrast i lartë</h3><p>Mbani hapësirë të qartë mes ushtrimeve dhe lexoni udhëzimet kur është e nevojshme.</p></article><article><span>Ritmi dhe përqendrimi</span><h3>Hapa të vegjël me pauza të shkurtra</h3><p>Ndajeni detyrën në pjesë dhe përdorni një sinjal të qartë para kalimit në hapin tjetër.</p></article></div>`;
+    const heading = detailHeading('Preferencat dhe komunikimi', 'Të dhënat e konfirmuara për mbështetjen e nxënësit.');
+    const hasProfile = selectedStudent.supportSummary || selectedStudent.accessibilityInformation || selectedStudent.preferredMode;
+    if (!hasProfile) return `${heading}<div class="teacher-detail-empty"><strong>Pa preferenca të raportuara</strong><p>Ky seksion do të plotësohet pasi familja të japë informacionin përkatës.</p></div>`;
+    return `${heading}<div class="teacher-preference-grid">${selectedStudent.supportSummary ? `<article><span>Përmbledhja</span><p>${escapeHtml(selectedStudent.supportSummary)}</p></article>` : ''}${selectedStudent.preferredMode ? `<article><span>Mënyra e preferuar</span><p>${escapeHtml(selectedStudent.preferredMode)}</p></article>` : ''}${selectedStudent.accessibilityInformation ? `<article><span>Qasshmëria</span><p>${escapeHtml(selectedStudent.accessibilityInformation)}</p></article>` : ''}</div>`;
   }
 
   function proficiencyOptions(value) {
     const levels = [['', 'Pa vlerësuar'], ['1', '1 · Fillestar'], ['2', '2 · Në zhvillim'], ['3', '3 · Pjesërisht i qëndrueshëm'], ['4', '4 · I qëndrueshëm'], ['5', '5 · Zotërim i avancuar']];
-    return levels.map(([score, label]) => `<option value="${score}"${score === value ? ' selected' : ''}>${label}</option>`).join('');
+    const normalized = String(value ?? '');
+    const custom = normalized && !levels.some(([score]) => score === normalized) ? `<option value="${escapeHtml(normalized)}" selected>${escapeHtml(normalized)} · Vlerësim ekzistues</option>` : '';
+    return custom + levels.map(([score, label]) => `<option value="${score}"${score === normalized ? ' selected' : ''}${score === '' ? ' disabled' : ''}>${label}</option>`).join('');
   }
 
   function renderAssessmentDetail() {
-    const chapters = [...proficiency.entries()];
-    const complete = chapters.every(([, value]) => value);
+    const subjects = materialContext.subjects;
+    if (!selectedAssessmentSubjectId || !subjects.some(subject => subject.id === selectedAssessmentSubjectId)) selectedAssessmentSubjectId = subjects[0]?.id || null;
+    const chapters = assessmentContext.chapters.filter(chapter => chapter.subject_id === selectedAssessmentSubjectId);
     const studentPeriods = academicPeriods.filter(period => !selectedStudent.schoolYear || period.school_year === selectedStudent.schoolYear);
     if (!studentPeriods.some(period => period.id === selectedAcademicPeriodId)) {
       selectedAcademicPeriodId = studentPeriods.find(period => period.status === 'active')?.id || studentPeriods[0]?.id || null;
     }
     const selectedPeriod = studentPeriods.find(period => period.id === selectedAcademicPeriodId);
     const editable = selectedPeriod?.status === 'active';
+    const currentAssessments = assessmentContext.assessments.filter(item => item.student_id === selectedStudent.id && item.subject_id === selectedAssessmentSubjectId && item.academic_period_id === selectedAcademicPeriodId);
+    const assessmentByChapter = Object.fromEntries(currentAssessments.map(item => [item.chapter_id, item]));
+    const assessedCount = chapters.filter(chapter => assessmentByChapter[chapter.id]).length;
+    const complete = chapters.length > 0 && assessedCount === chapters.length;
+    const finalGrade = assessmentContext.finalGrades.find(item => item.student_id === selectedStudent.id && item.subject_id === selectedAssessmentSubjectId && item.academic_period_id === selectedAcademicPeriodId);
+    const subjectOptions = subjects.map(subject => `<option value="${escapeHtml(subject.id)}"${subject.id === selectedAssessmentSubjectId ? ' selected' : ''}>${escapeHtml(subject.name)}</option>`).join('');
     const periodOptions = studentPeriods.map(period => `<option value="${escapeHtml(period.id)}"${period.id === selectedAcademicPeriodId ? ' selected' : ''}>${escapeHtml(period.name)} · ${escapeHtml(period.school_year)}${period.status === 'closed' ? ' · E mbyllur' : period.status === 'planned' ? ' · E planifikuar' : ''}</option>`).join('');
     const box = document.getElementById('teacherFolderDetail');
-    box.innerHTML = `${detailHeading('Vlerësimet', 'Njohuritë sipas kapitujve; rezultati nuk publikohet pa konfirmim.')}<div class="teacher-assessment-toolbar"><label>Lënda<select><option>Matematikë</option></select></label><label>Periudha<select id="teacherAssessmentPeriod"${studentPeriods.length ? '' : ' disabled'}>${periodOptions || '<option>Pa periudhë akademike</option>'}</select></label></div>${selectedPeriod && !editable ? '<p class="teacher-period-lock">Kjo periudhë nuk është aktive. Mund ta shikoni, por vlerësimet nuk mund të ndryshohen.</p>' : ''}<div class="teacher-chapter-list">${chapters.map(([chapter, value]) => `<article class="teacher-chapter-row"><div><strong>${escapeHtml(chapter)}</strong><small>${value ? 'Vlerësimi i fundit: 12 gusht' : 'Ende pa vlerësim'}</small></div><select data-chapter="${escapeHtml(chapter)}" aria-label="Vlerësimi për ${escapeHtml(chapter)}"${editable ? '' : ' disabled'}>${proficiencyOptions(value)}</select><button type="button" data-message-chapter="${escapeHtml(chapter)}"${editable ? '' : ' disabled'}>＋ Mesazh për prindin</button></article>`).join('')}</div><div class="teacher-final-grade"><div><strong>Nota përfundimtare</strong><p>${!editable ? 'Nota mund të vendoset vetëm në periudhën aktive.' : complete ? 'Të gjithë kapitujt janë vlerësuar. Nota mund të konfirmohet.' : 'Vlerësoni të gjithë kapitujt para se të vendosni notën përfundimtare.'}</p></div><button type="button"${complete && editable ? '' : ' disabled'}>${complete && editable ? 'Vendos notën' : 'Jo e disponueshme'}</button></div>`;
+    box.innerHTML = `${detailHeading('Vlerësimet', 'Njohuritë sipas kapitujve ruhen në periudhën e zgjedhur.')}<div class="teacher-assessment-toolbar"><label>Lënda<select id="teacherAssessmentSubject"${subjects.length ? '' : ' disabled'}>${subjectOptions || '<option>Pa lëndë të caktuar</option>'}</select></label><label>Periudha<select id="teacherAssessmentPeriod"${studentPeriods.length ? '' : ' disabled'}>${periodOptions || '<option>Pa periudhë akademike</option>'}</select></label><button class="teacher-primary-button" id="teacherAddChapter" type="button"${selectedAssessmentSubjectId ? '' : ' disabled'}>＋ Shto kapitull</button></div><p class="teacher-assessment-status" id="teacherAssessmentStatus" aria-live="polite"></p>${selectedPeriod && !editable ? '<p class="teacher-period-lock">Kjo periudhë nuk është aktive. Mund ta shikoni, por vlerësimet nuk mund të ndryshohen.</p>' : ''}<div class="teacher-chapter-list">${chapters.length ? chapters.map(chapter => { const assessment = assessmentByChapter[chapter.id]; const value = assessment ? String(Number(assessment.score)) : ''; return `<article class="teacher-chapter-row"><div><strong>${escapeHtml(chapter.name)}</strong><small>${assessment ? `Ruajtur më ${escapeHtml(new Intl.DateTimeFormat('sq-AL', { dateStyle: 'medium' }).format(new Date(assessment.updated_at || assessment.graded_at)))}` : 'Ende pa vlerësim'}</small></div><select data-chapter-id="${chapter.id}" aria-label="Vlerësimi për ${escapeHtml(chapter.name)}"${editable ? '' : ' disabled'}>${proficiencyOptions(value)}</select><button type="button" data-message-chapter-id="${chapter.id}"${editable && assessment ? '' : ' disabled'}>${assessment?.parent_message ? 'Ndrysho mesazhin' : '＋ Mesazh për prindin'}</button></article>`; }).join('') : '<p class="teacher-detail-empty">Nuk ka kapituj aktivë për këtë lëndë.</p>'}</div><div class="teacher-final-grade${complete ? '' : ' incomplete'}"><div><strong>Nota përfundimtare${finalGrade ? `: ${finalGrade.grade}` : ''}</strong><p>${!editable ? 'Nota mund të vendoset vetëm në periudhën aktive.' : `${assessedCount} nga ${chapters.length} kapituj janë vlerësuar.${complete ? '' : ' Mund të vazhdoni, por kontrolloni notën me kujdes.'}`}</p></div><button type="button"${editable && selectedAssessmentSubjectId ? '' : ' disabled'}>${editable && selectedAssessmentSubjectId ? (finalGrade ? 'Ndrysho notën' : 'Vendos notën') : 'Jo e disponueshme'}</button></div>`;
+    document.getElementById('teacherAddChapter')?.addEventListener('click', openChapterForm);
+    document.getElementById('teacherAssessmentSubject')?.addEventListener('change', event => {
+      selectedAssessmentSubjectId = event.target.value;
+      renderAssessmentDetail();
+    });
     document.getElementById('teacherAssessmentPeriod')?.addEventListener('change', event => {
       selectedAcademicPeriodId = event.target.value;
       renderAssessmentDetail();
     });
-    box.querySelectorAll('[data-chapter]').forEach(select => select.addEventListener('change', () => {
-      proficiency.set(select.dataset.chapter, select.value);
-      renderAssessmentDetail();
+    box.querySelectorAll('[data-chapter-id]').forEach(select => select.addEventListener('change', async () => {
+      const status = document.getElementById('teacherAssessmentStatus');
+      select.disabled = true;
+      status.textContent = 'Duke ruajtur vlerësimin…';
+      try {
+        const existing = assessmentByChapter[select.dataset.chapterId];
+        const saved = await saveChapterAssessment({ studentId: selectedStudent.id, subjectId: selectedAssessmentSubjectId, chapterId: select.dataset.chapterId, periodId: selectedAcademicPeriodId, score: select.value, parentMessage: existing?.parent_message || '' });
+        assessmentContext.assessments = assessmentContext.assessments.filter(item => item.id !== saved.id && !(item.student_id === saved.student_id && item.chapter_id === saved.chapter_id && item.academic_period_id === saved.academic_period_id));
+        assessmentContext.assessments.push(saved);
+        renderAssessmentDetail();
+        document.getElementById('teacherAssessmentStatus').textContent = 'Vlerësimi u ruajt.';
+      } catch (error) {
+        select.disabled = false;
+        status.textContent = error.message || 'Vlerësimi nuk u ruajt.';
+      }
     }));
-    box.querySelectorAll('[data-message-chapter]').forEach(button => button.addEventListener('click', () => openParentMessage(button.dataset.messageChapter)));
+    box.querySelectorAll('[data-message-chapter-id]').forEach(button => button.addEventListener('click', () => openParentMessage(button.dataset.messageChapterId)));
     const finalButton = box.querySelector('.teacher-final-grade button');
     if (!finalButton.disabled) finalButton.addEventListener('click', openFinalGrade);
   }
 
-  function openParentMessage(chapter) {
+  function openChapterForm() {
     const box = document.getElementById('teacherFolderDetail');
-    box.innerHTML = `${detailHeading(`Mesazh për prindin · ${chapter}`, 'Ky mesazh do të shoqërojë vlerësimin kur funksionaliteti të lidhet me bazën e të dhënave.')}<form class="teacher-composer" id="teacherParentMessageForm"><label>Mesazhi<textarea rows="5" placeholder="Përshkruani shkurt progresin dhe çfarë mund të ushtrohet në shtëpi."></textarea></label><label class="teacher-check-row"><input type="checkbox" checked> Dërgo si njoftim brenda platformës</label><div class="teacher-form-actions"><button type="button" id="cancelParentMessage">Anulo</button><button class="teacher-primary-button" type="submit">Ruaj mesazhin</button></div></form>`;
-    document.getElementById('cancelParentMessage').addEventListener('click', renderAssessmentDetail);
-    document.getElementById('teacherParentMessageForm').addEventListener('submit', event => {
+    box.innerHTML = `${detailHeading('Shto kapitull', 'Kapitulli do të jetë i disponueshëm për vlerësimet e kësaj lënde.')}<form class="teacher-composer" id="teacherChapterForm"><label>Emri i kapitullit<input name="name" required maxlength="120" placeholder="p.sh. Thyesat"></label><p class="teacher-assessment-status" aria-live="polite"></p><div class="teacher-form-actions"><button type="button" id="cancelChapter">Anulo</button><button class="teacher-primary-button" type="submit">Ruaj kapitullin</button></div></form>`;
+    document.getElementById('cancelChapter').addEventListener('click', renderAssessmentDetail);
+    document.getElementById('teacherChapterForm').addEventListener('submit', async event => {
       event.preventDefault();
-      renderAssessmentDetail();
+      const form = event.currentTarget;
+      const submit = form.querySelector('[type="submit"]');
+      const status = form.querySelector('.teacher-assessment-status');
+      submit.disabled = true;
+      try {
+        const chapter = await createTeacherChapter(selectedAssessmentSubjectId, form.elements.name.value);
+        assessmentContext.chapters.push(chapter);
+        renderAssessmentDetail();
+      } catch (error) {
+        submit.disabled = false;
+        status.textContent = error.message || 'Kapitulli nuk u ruajt.';
+      }
+    });
+  }
+
+  function openParentMessage(chapterId) {
+    const chapter = assessmentContext.chapters.find(item => item.id === chapterId);
+    const assessment = assessmentContext.assessments.find(item => item.student_id === selectedStudent.id && item.chapter_id === chapterId && item.academic_period_id === selectedAcademicPeriodId);
+    const box = document.getElementById('teacherFolderDetail');
+    box.innerHTML = `${detailHeading(`Mesazh për prindin · ${chapter?.name || 'Kapitulli'}`, 'Mesazhi ruhet bashkë me vlerësimin dhe shfaqet në profilin e prindit.')}<form class="teacher-composer" id="teacherParentMessageForm"><label>Mesazhi<textarea rows="5" maxlength="1200" placeholder="Përshkruani shkurt progresin dhe çfarë mund të ushtrohet në shtëpi.">${escapeHtml(assessment?.parent_message || '')}</textarea></label><p class="teacher-assessment-status" aria-live="polite"></p><div class="teacher-form-actions"><button type="button" id="cancelParentMessage">Anulo</button><button class="teacher-primary-button" type="submit">Ruaj mesazhin</button></div></form>`;
+    document.getElementById('cancelParentMessage').addEventListener('click', renderAssessmentDetail);
+    document.getElementById('teacherParentMessageForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const submit = form.querySelector('[type="submit"]');
+      const status = form.querySelector('.teacher-assessment-status');
+      submit.disabled = true;
+      try {
+        const saved = await saveChapterAssessment({ studentId: selectedStudent.id, subjectId: selectedAssessmentSubjectId, chapterId, periodId: selectedAcademicPeriodId, score: assessment.score, parentMessage: form.querySelector('textarea').value });
+        assessmentContext.assessments = assessmentContext.assessments.filter(item => item.id !== saved.id && !(item.student_id === saved.student_id && item.chapter_id === saved.chapter_id && item.academic_period_id === saved.academic_period_id));
+        assessmentContext.assessments.push(saved);
+        renderAssessmentDetail();
+      } catch (error) {
+        submit.disabled = false;
+        status.textContent = error.message || 'Mesazhi nuk u ruajt.';
+      }
     });
   }
 
   function openFinalGrade() {
     const period = academicPeriods.find(item => item.id === selectedAcademicPeriodId);
     const box = document.getElementById('teacherFolderDetail');
-    box.innerHTML = `${detailHeading('Nota përfundimtare', 'Konfirmimi mbetet vetëm demonstrim në këtë prototip.')}<form class="teacher-composer" id="teacherFinalGradeForm"><div class="teacher-form-grid"><label>Nota<select><option>5 · Shkëlqyeshëm</option><option>4 · Shumë mirë</option><option>3 · Mirë</option><option>2 · Mjaftueshëm</option><option>1 · Pamjaftueshëm</option></select></label><label>Periudha<select disabled><option>${escapeHtml(period ? `${period.name} · ${period.school_year}` : 'Pa periudhë')}</option></select></label></div><label>Shënim opsional<textarea rows="4" placeholder="Përmbledhje e shkurtër për prindin"></textarea></label><div class="teacher-form-actions"><button type="button" id="cancelFinalGrade">Anulo</button><button class="teacher-primary-button" type="submit">Konfirmo notën</button></div></form>`;
+    const existing = assessmentContext.finalGrades.find(item => item.student_id === selectedStudent.id && item.subject_id === selectedAssessmentSubjectId && item.academic_period_id === selectedAcademicPeriodId);
+    box.innerHTML = `${detailHeading('Nota përfundimtare', 'Kontrolloni notën para publikimit.')}<form class="teacher-composer" id="teacherFinalGradeForm"><div class="teacher-form-grid"><label>Nota<select name="grade">${[5,4,3,2,1].map(value => `<option value="${value}"${Number(existing?.grade || 5) === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>Periudha<select disabled><option>${escapeHtml(period ? `${period.name} · ${period.school_year}` : 'Pa periudhë')}</option></select></label></div><label>Shënim opsional<textarea name="message" maxlength="1200" rows="4" placeholder="Përmbledhje e shkurtër për prindin">${escapeHtml(existing?.parent_message || '')}</textarea></label><label>Shkruani emrin dhe mbiemrin e nxënësit<input name="confirmationName" required autocomplete="off" placeholder="${escapeHtml(selectedStudent.name)}"></label><p class="teacher-assessment-status" aria-live="polite"></p><div class="teacher-form-actions"><button type="button" id="cancelFinalGrade">Anulo</button><button class="teacher-primary-button" type="submit">Konfirmo notën</button></div></form>`;
     document.getElementById('cancelFinalGrade').addEventListener('click', renderAssessmentDetail);
-    document.getElementById('teacherFinalGradeForm').addEventListener('submit', event => {
+    document.getElementById('teacherFinalGradeForm').addEventListener('submit', async event => {
       event.preventDefault();
-      renderAssessmentDetail();
+      const form = event.currentTarget;
+      const submit = form.querySelector('[type="submit"]');
+      const status = form.querySelector('.teacher-assessment-status');
+      const confirmationName = form.elements.confirmationName.value.trim().replace(/\s+/g, ' ');
+      if (confirmationName.toLocaleLowerCase('sq') !== selectedStudent.name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('sq')) {
+        status.textContent = 'Emri dhe mbiemri nuk përputhen me nxënësin e zgjedhur.';
+        return;
+      }
+      if (!window.confirm(`Jeni të sigurt që dëshironi të publikoni notën ${form.elements.grade.value} për ${selectedStudent.name}?`)) return;
+      submit.disabled = true;
+      try {
+        const saved = await saveTeacherFinalGrade({ studentId: selectedStudent.id, subjectId: selectedAssessmentSubjectId, periodId: selectedAcademicPeriodId, grade: form.elements.grade.value, parentMessage: form.elements.message.value, confirmationName });
+        assessmentContext.finalGrades = assessmentContext.finalGrades.filter(item => item.id !== saved.id && !(item.student_id === saved.student_id && item.subject_id === saved.subject_id && item.academic_period_id === saved.academic_period_id));
+        assessmentContext.finalGrades.push(saved);
+        renderAssessmentDetail();
+      } catch (error) {
+        submit.disabled = false;
+        status.textContent = error.message || 'Nota përfundimtare nuk u ruajt.';
+      }
     });
   }
 
@@ -388,10 +465,15 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       badge.hidden = unreadCount === 0;
     });
     list.innerHTML = '';
+    if (!visible.length) {
+      list.innerHTML = `<p class="teacher-message-empty">${unreadOnly ? 'Nuk ka mesazhe të palexuara.' : 'Nuk ka mesazhe nga prindërit.'}</p>`;
+      return;
+    }
     visible.forEach(message => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `teacher-message-preview${message.unread ? '' : ' read'}`;
+      button.classList.toggle('active', message.id === activeMessageId);
       button.innerHTML = `<span class="unread-dot"></span><div><strong>${escapeHtml(message.parent)}</strong><p>${escapeHtml(message.subject)}</p><p>${escapeHtml(message.student)}</p></div><time>${escapeHtml(message.time)}</time>`;
       button.addEventListener('click', () => openMessage(message, button));
       list.appendChild(button);
@@ -399,23 +481,63 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   }
 
   function openMessage(message, preview) {
-    messages.forEach(item => { if (item.id === message.id) item.unread = false; });
+    activeMessageId = message.id;
     renderMessages();
     const detail = document.getElementById('teacherMessageDetail');
-    detail.innerHTML = `<button class="teacher-back-button teacher-message-mobile-back" type="button">← Kthehu</button><div class="teacher-message-heading"><h2>${escapeHtml(message.subject)}</h2><p>${escapeHtml(message.parent)} · Prindi i ${escapeHtml(message.student)} · ${escapeHtml(message.time)}</p></div><div class="teacher-message-body"><p>${escapeHtml(message.body)}</p></div><form class="teacher-reply-box"><label class="sr-only" for="teacherReplyText">Përgjigjja</label><textarea id="teacherReplyText" placeholder="Shkruani përgjigjen..."></textarea><div><button class="teacher-primary-button" type="submit">Dërgo përgjigjen</button></div></form>`;
+    const replies = (message.replies || []).map(reply => `<p class="teacher-saved-reply"><strong>Ju</strong>${escapeHtml(reply.message)}<time>${escapeHtml(new Intl.DateTimeFormat('sq-AL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(reply.created_at)))}</time></p>`).join('');
+    detail.innerHTML = `<button class="teacher-back-button teacher-message-mobile-back" type="button">← Kthehu</button><div class="teacher-message-heading"><div class="teacher-message-heading-row"><div><h2>${escapeHtml(message.subject)}</h2><p>${escapeHtml(message.parent)} · ${escapeHtml(message.student)} · ${escapeHtml(message.time)}</p></div><div class="teacher-message-actions">${message.unread ? '<button type="button" data-message-action="read">Shëno si të lexuar</button>' : '<span>Mesazh i lexuar</span>'}<button class="danger" type="button" data-message-action="delete">Fshi</button></div></div><p class="teacher-message-action-status" aria-live="polite"></p></div><div class="teacher-message-body"><p>${escapeHtml(message.body)}</p>${replies}</div><form class="teacher-reply-box"><label class="sr-only" for="teacherReplyText">Përgjigjja</label><textarea id="teacherReplyText" maxlength="1200" placeholder="Shkruani përgjigjen..."></textarea><p class="teacher-message-action-status" aria-live="polite"></p><div><button class="teacher-primary-button" type="submit">Dërgo përgjigjen</button></div></form>`;
     detail.classList.add('mobile-open');
     detail.querySelector('.teacher-message-mobile-back').addEventListener('click', () => detail.classList.remove('mobile-open'));
-    detail.querySelector('form').addEventListener('submit', event => {
+    detail.querySelector('[data-message-action="read"]')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const status = detail.querySelector('.teacher-message-action-status');
+      button.disabled = true;
+      status.textContent = 'Duke e shënuar si të lexuar…';
+      try {
+        await markParentNoticeRead(message.id);
+        message.unread = false;
+        renderMessages();
+        openMessage(message);
+      } catch (error) {
+        button.disabled = false;
+        status.textContent = error.message || 'Mesazhi nuk u përditësua.';
+      }
+    });
+    detail.querySelector('[data-message-action="delete"]').addEventListener('click', async event => {
+      if (!window.confirm('Jeni të sigurt që dëshironi ta fshini këtë mesazh? Ky veprim nuk mund të zhbëhet.')) return;
+      const button = event.currentTarget;
+      const status = detail.querySelector('.teacher-message-action-status');
+      button.disabled = true;
+      status.textContent = 'Duke e fshirë mesazhin…';
+      try {
+        await deleteParentNotice(message.id);
+        messages = messages.filter(item => item.id !== message.id);
+        activeMessageId = null;
+        detail.classList.remove('mobile-open');
+        detail.innerHTML = '<div class="teacher-empty-message"><span>◇</span><strong>Zgjidhni një mesazh</strong><p>Mesazhi dhe përgjigjet do të shfaqen këtu.</p></div>';
+        renderMessages();
+      } catch (error) {
+        button.disabled = false;
+        status.textContent = error.message || 'Mesazhi nuk u fshi.';
+      }
+    });
+    detail.querySelector('form').addEventListener('submit', async event => {
       event.preventDefault();
       const textarea = detail.querySelector('textarea');
       if (!textarea.value.trim()) return;
-      const reply = document.createElement('p');
-      reply.textContent = `Ju: ${textarea.value.trim()}`;
-      detail.querySelector('.teacher-message-body').appendChild(reply);
-      textarea.value = '';
+      const button = event.currentTarget.querySelector('[type="submit"]');
+      const status = event.currentTarget.querySelector('.teacher-message-action-status');
+      button.disabled = true;
+      status.textContent = 'Duke dërguar përgjigjen…';
+      try {
+        const reply = await replyToParentNotice(message.id, materialContext.teacherId, textarea.value);
+        (message.replies ||= []).push(reply);
+        openMessage(message);
+      } catch (error) {
+        button.disabled = false;
+        status.textContent = error.message || 'Përgjigjja nuk u dërgua.';
+      }
     });
-    const active = [...document.querySelectorAll('.teacher-message-preview')].find(button => button.textContent.includes(message.subject));
-    if (active) active.classList.add('active');
   }
 
   document.getElementById('teacherUnreadFilter').addEventListener('click', event => {
@@ -425,9 +547,25 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     renderMessages();
   });
 
-  document.getElementById('teacherSaveSettings').addEventListener('click', () => {
+  document.getElementById('teacherSaveSettings').addEventListener('click', async event => {
     const email = document.getElementById('teacherNotificationEmail').value.trim();
-    document.getElementById('teacherSettingsStatus').textContent = email ? 'Cilësimet u ruajtën në këtë prototip.' : 'Shtoni email-in ku dëshironi të merrni njoftimet.';
+    const parentMessageEmails = document.getElementById('teacherParentMessageEmails').checked;
+    const dailyDigestEmails = document.getElementById('teacherDailyDigestEmails').checked;
+    const status = document.getElementById('teacherSettingsStatus');
+    if ((parentMessageEmails || dailyDigestEmails) && !email) {
+      status.textContent = 'Shtoni email-in ku dëshironi të merrni njoftimet.';
+      return;
+    }
+    event.currentTarget.disabled = true;
+    status.textContent = 'Duke ruajtur cilësimet…';
+    try {
+      notificationPreferences = await saveTeacherNotificationPreferences({ profileId: materialContext.teacherId, email, parentMessageEmails, dailyDigestEmails });
+      status.textContent = 'Cilësimet e email-it u ruajtën.';
+    } catch (error) {
+      status.textContent = error.message || 'Cilësimet nuk u ruajtën.';
+    } finally {
+      event.currentTarget.disabled = false;
+    }
   });
 
   const logoutDialog = document.getElementById('teacherLogoutDialog');
@@ -446,20 +584,27 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   renderMessages();
 
   return {
-    setData({ teacherName, teacherId, schoolId, subjects = [], academicPeriods: nextPeriods = [], students: nextStudents, moods = {} } = {}) {
+    setData({ teacherName, teacherEmail = '', teacherId, schoolId, subjects = [], academicPeriods: nextPeriods = [], students: nextStudents = [], moods = {}, messages: nextMessages = [], chapters = [], assessments = [], finalGrades = [], preferences = null } = {}) {
       if (teacherName) {
         root.querySelectorAll('[data-teacher-name]').forEach(element => { element.textContent = teacherName; });
         const avatar = initials(teacherName);
         root.querySelectorAll('.teacher-account-avatar,.teacher-header-avatar').forEach(element => { element.textContent = avatar; });
       }
-      if (Array.isArray(nextStudents) && nextStudents.length) {
-        students = nextStudents.map(student => ({ ...student, mood: moods[student.name]?.mood || '' }));
-        selectedStudent = students[0];
-        renderStudents(document.getElementById('teacherStudentSearch').value);
-      }
+      students = Array.isArray(nextStudents) ? nextStudents.map(student => ({ ...student, mood: moods[student.name]?.mood || '', moodComment: moods[student.name]?.comment || '' })) : [];
+      selectedStudent = students[0] || null;
+      renderStudents(document.getElementById('teacherStudentSearch').value);
       materialContext = { teacherId: teacherId || materialContext.teacherId, schoolId: schoolId || materialContext.schoolId, subjects };
+      assessmentContext = { chapters, assessments, finalGrades };
+      selectedAssessmentSubjectId = subjects[0]?.id || null;
       academicPeriods = nextPeriods;
       selectedAcademicPeriodId = academicPeriods.find(period => period.status === 'active')?.id || academicPeriods[0]?.id || null;
+      messages = Array.isArray(nextMessages) ? nextMessages.map(message => ({ ...message })) : [];
+      notificationPreferences = preferences;
+      document.getElementById('teacherNotificationEmail').value = preferences?.notification_email || teacherEmail;
+      document.getElementById('teacherParentMessageEmails').checked = preferences?.parent_message_emails || false;
+      document.getElementById('teacherDailyDigestEmails').checked = preferences?.daily_digest_emails || false;
+      activeMessageId = null;
+      renderMessages();
       renderMaterialFormOptions();
       loadMaterialLibrary();
     }

@@ -15,8 +15,9 @@ import { initializeTeacherPrototype } from './teacher/teacherPrototype.js';
     let activeAcademicPeriodId=null;
     const teacherNoticeRows=[];
     const parentTeacherNotices=[];
+    const parentNoticeReplies=[];
     function userMessage(error,fallback='Nuk mund të lidhemi me të dhënat. Provoni përsëri.'){ console.warn(fallback,error); return fallback; }
-    async function verifySupabaseConnection(){ const status=document.getElementById('databaseStatus'); try { const {error}=await supabaseClient.auth.getSession(); if(error) throw error; status.textContent='✓ Baza e të dhënave u lidh në mënyrë të sigurt.'; } catch(error) { status.textContent='Lidhja me bazën e të dhënave nuk u verifikua. Rifreskoni faqen.'; console.warn('Supabase connection:',error.message); } }
+    async function verifySupabaseConnection(){ const status=document.getElementById('databaseStatus'); try { const {error}=await supabaseClient.auth.getSession(); if(error) throw error; status.classList.remove('error'); status.textContent='✓ Baza e të dhënave u lidh në mënyrë të sigurt.'; } catch(error) { status.classList.add('error'); status.textContent='Lidhja me bazën e të dhënave nuk u verifikua. Rifreskoni faqen.'; console.warn('Supabase connection:',error.message); } }
     verifySupabaseConnection();
     initializeAccountSetup();
     initializeAdminWorkflow();
@@ -58,16 +59,20 @@ import { initializeTeacherPrototype } from './teacher/teacherPrototype.js';
     async function loadTeacherData(user){
       currentUser=user;
       currentTeacherId=user.id;
-      const {profileResult,subjectResult,studentResult,supportResult,chapterResult,gradeResult,moodResult,teacherNoticeResult,periodResult}=await fetchTeacherDashboardData(user.id);
+      const {profileResult,subjectResult,studentResult,supportResult,chapterResult,gradeResult,moodResult,teacherNoticeResult,parentNoticeResult,parentReplyResult,finalGradeResult,preferenceResult,periodResult}=await fetchTeacherDashboardData(user.id);
       if(profileResult.error) throw profileResult.error;
       if(studentResult.error) throw studentResult.error;
       if(subjectResult.error) throw subjectResult.error;
       if(periodResult.error) throw periodResult.error;
+      if(parentNoticeResult.error) throw parentNoticeResult.error;
+      if(parentReplyResult.error) throw parentReplyResult.error;
+      if(finalGradeResult.error) throw finalGradeResult.error;
+      if(preferenceResult.error) throw preferenceResult.error;
       const firstSubject=subjectResult.data&&subjectResult.data[0];
       const subjectName=firstSubject&&firstSubject.subjects?firstSubject.subjects.name:'Matematikë';
       activeSubjectId=firstSubject&&firstSubject.subjects?firstSubject.subjects.id:firstSubject?firstSubject.subject_id:null;
       const supportByStudent=Object.fromEntries((supportResult.data||[]).map(item=>[item.student_id,item]));
-      storedStudents.splice(0,storedStudents.length,...(studentResult.data||[]).map(item=>{const support=supportByStudent[item.id]||{}; return {id:item.id,class_id:item.class_id,className:item.class_name||'Pa klasë',schoolYear:item.classes?.school_year||'',name:item.first_name+' '+item.last_name,support:support.support_summary||'Pa mbështetje të shënuar',detail:support.support_summary||'',icon:'📋'};}));
+      storedStudents.splice(0,storedStudents.length,...(studentResult.data||[]).map(item=>{const support=supportByStudent[item.id]||{}; return {id:item.id,class_id:item.class_id,className:item.class_name||'Pa klasë',schoolYear:item.classes?.school_year||'',name:item.first_name+' '+item.last_name,support:support.support_summary||'Pa mbështetje të shënuar',supportSummary:support.support_summary||'',preferredMode:support.preferences?.preferred_mode||'',accessibilityInformation:support.accessibility_information||'',detail:support.support_summary||'',icon:'📋'};}));
       Object.keys(dailyMoods).forEach(key=>delete dailyMoods[key]);
       Object.keys(moodHistory).forEach(key=>delete moodHistory[key]);
       (moodResult.data||[]).forEach(item=>{const student=storedStudents.find(row=>row.id===item.student_id); if(student){ if(!dailyMoods[student.name]) dailyMoods[student.name]={mood:item.mood,comment:item.parent_comment||''}; if(!moodHistory[student.name]) moodHistory[student.name]=[]; moodHistory[student.name].push({date:item.reported_on,mood:item.mood,comment:item.parent_comment||''}); }});
@@ -76,10 +81,15 @@ import { initializeTeacherPrototype } from './teacher/teacherPrototype.js';
       teacherNoticeRows.splice(0,teacherNoticeRows.length,...(teacherNoticeResult.data||[]));
       const academicPeriods=periodResult.data||[];
       activeAcademicPeriodId=academicPeriods.find(item=>item.status==='active')?.id||null;
+      const repliesByNotice=(parentReplyResult.data||[]).reduce((result,item)=>{(result[item.notice_id]||=[]).push(item);return result;},{});
+      const parentMessages=(parentNoticeResult.data||[]).map(item=>{const student=item.students; const studentName=student?student.first_name+' '+student.last_name:'Nxënësi'; return {id:item.id,unread:!item.read_at,parent:'Prindi',student:studentName,subject:item.subjects?.name?`Mesazh për ${item.subjects.name}`:'Mesazh nga prindi',time:new Intl.DateTimeFormat('sq-AL',{dateStyle:'medium',timeStyle:'short'}).format(new Date(item.created_at)),body:item.comment,replies:repliesByNotice[item.id]||[]};});
+      const today=new Date().toLocaleDateString('en-CA');
+      const todayMoods={};
+      (moodResult.data||[]).filter(item=>item.reported_on===today).forEach(item=>{const student=storedStudents.find(row=>row.id===item.student_id); if(student&&!todayMoods[student.name]) todayMoods[student.name]={mood:item.mood,comment:item.parent_comment||''};});
       const teacherFullName=profileResult.data.first_name+' '+profileResult.data.last_name;
       document.getElementById('teacherName').textContent=teacherFullName;
       document.getElementById('teacherWelcomeName').textContent=teacherFullName;
-      teacherPrototype.setData({teacherName:teacherFullName,teacherId:user.id,schoolId:profileResult.data.school_id,subjects:(subjectResult.data||[]).map(item=>item.subjects||{id:item.subject_id,name:'Lënda'}),academicPeriods,students:storedStudents,moods:dailyMoods});
+      teacherPrototype.setData({teacherName:teacherFullName,teacherEmail:user.email||'',teacherId:user.id,schoolId:profileResult.data.school_id,subjects:(subjectResult.data||[]).map(item=>item.subjects||{id:item.subject_id,name:'Lënda'}),academicPeriods,students:storedStudents,moods:todayMoods,messages:parentMessages,chapters:chapterResult.data||[],assessments:gradeResult.data||[],finalGrades:finalGradeResult.data||[],preferences:preferenceResult.data});
       setTeacherSubject(subjectName);
       renderStudents(); renderEvaluationFolders(); renderDailyMoods();
     }
@@ -264,7 +274,7 @@ import { initializeTeacherPrototype } from './teacher/teacherPrototype.js';
       if(studentIndex>=0) activeStudent=studentIndex;
       const chapters=chaptersBySubject[activeSubject]||[];
       if(!chapters.length){
-        view.innerHTML='<button class="btn analytics-back" type="button" id="closeEvaluationAnalytics">← Vlerësimi përfundimtar</button><section class="analytics-card pia"><div class="section-head"><div><h2>Plani Individual Arsimor</h2><p class="small muted">'+escapeHtml(student.name)+'</p></div><span class="badge">PIA</span></div><p class="small muted">Të dhënat PIA lexohen nga profili i autorizuar i nxënësit kur janë të regjistruara.</p></section><section class="analytics-card"><div class="section-head"><div><p class="small muted">Raporti i lëndës</p><h2>'+escapeHtml(activeSubject)+'</h2></div><span class="badge">Pa të dhëna</span></div><p class="small muted">Nuk ka ende të dhëna të mjaftueshme.</p></section>';
+        view.innerHTML='<button class="btn analytics-back" type="button" id="closeEvaluationAnalytics">← Vlerësimi përfundimtar</button><section class="analytics-card"><div class="section-head"><div><p class="small muted">Raporti i lëndës</p><h2>'+escapeHtml(activeSubject)+'</h2></div><span class="badge">Pa të dhëna</span></div><p class="small muted">Nuk ka ende të dhëna të mjaftueshme.</p></section>';
         panel.classList.add('analytics-open');
         document.getElementById('closeEvaluationAnalytics').onclick=()=>{ if(!teacherGoBack()) panel.classList.remove('analytics-open'); };
         recordTeacherView();
@@ -276,7 +286,7 @@ import { initializeTeacherPrototype } from './teacher/teacherPrototype.js';
       const points=values.map((value,index)=>{const x=34+(index*(232/Math.max(values.length-1,1)));const y=118-(value/5*82);return x+','+y;}).join(' ');
       const markers=values.map((value,index)=>{const x=34+(index*(232/Math.max(values.length-1,1)));const y=118-(value/5*82);return '<circle cx="'+x+'" cy="'+y+'" r="5" fill="#2e8e70" stroke="#fff" stroke-width="3"/>';}).join('');
       const topics=labels.map((label,index)=>'<div class="analytics-topic"><span><strong>'+escapeHtml(label)+'</strong><br><span class="small muted">'+(values[index]>=4?'Në objektiv':'Kërkon përforcim')+'</span></span><span class="'+(values[index]>=4?'trend-up':'trend-watch')+'">'+values[index].toFixed(1).replace('.',',')+' / 5 '+(values[index]>=4?'↑':'↗')+'</span></div>').join('');
-      view.innerHTML='<button class="btn analytics-back" type="button" id="closeEvaluationAnalytics">← Vlerësimi përfundimtar</button><section class="analytics-card pia"><div class="section-head"><div><h2>Plani Individual Arsimor</h2><p class="small muted">'+escapeHtml(student.name)+'</p></div><span class="badge">PIA</span></div><p class="small muted">Të dhënat PIA lexohen nga profili i autorizuar i nxënësit kur janë të regjistruara.</p></section><section class="analytics-card"><div class="analytics-subject-head"><div><p class="small muted">Raporti i lëndës</p><h2>'+escapeHtml(activeSubject)+'</h2></div><span class="badge">Mes. '+average+' / 5</span></div><svg class="analytics-chart" viewBox="0 0 300 145" role="img" aria-label="Grafiku i përparimit në '+escapeHtml(activeSubject)+'"><path d="M28 120H278M28 78H278M28 36H278" stroke="#dce9e3" stroke-width="1"/><polyline points="'+points+'" fill="none" stroke="#2e8e70" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'+markers+'<text x="28" y="138" fill="#657168" font-size="10">Fillimi</text><text x="222" y="138" fill="#657168" font-size="10">Vlerësimi i fundit</text></svg>'+topics+'</section>';
+      view.innerHTML='<button class="btn analytics-back" type="button" id="closeEvaluationAnalytics">← Vlerësimi përfundimtar</button><section class="analytics-card"><div class="analytics-subject-head"><div><p class="small muted">Raporti i lëndës</p><h2>'+escapeHtml(activeSubject)+'</h2></div><span class="badge">Mes. '+average+' / 5</span></div><svg class="analytics-chart" viewBox="0 0 300 145" role="img" aria-label="Grafiku i përparimit në '+escapeHtml(activeSubject)+'"><path d="M28 120H278M28 78H278M28 36H278" stroke="#dce9e3" stroke-width="1"/><polyline points="'+points+'" fill="none" stroke="#2e8e70" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'+markers+'<text x="28" y="138" fill="#657168" font-size="10">Fillimi</text><text x="222" y="138" fill="#657168" font-size="10">Vlerësimi i fundit</text></svg>'+topics+'</section>';
       panel.classList.add('analytics-open');
       document.getElementById('closeEvaluationAnalytics').onclick=()=>{ if(!teacherGoBack()) panel.classList.remove('analytics-open'); };
       recordTeacherView();
@@ -372,7 +382,7 @@ import { initializeTeacherPrototype } from './teacher/teacherPrototype.js';
     document.getElementById('backToRegistry').onclick=()=>{ const student=storedStudents[activeStudent]; if(!teacherGoBack()){ if(document.getElementById('appPhone').classList.contains('student-selected')&&student) openStudentFolder(student); else document.getElementById('registryToggle').click(); } };
     document.getElementById('studentFolderBack').onclick=()=>{ if(!teacherGoBack()) returnToStudentRegistry(); };
     document.getElementById('studentFolderForward').onclick=teacherGoForward;
-    document.querySelectorAll('[data-folder-action]').forEach(button=>button.onclick=()=>{ const action=button.dataset.folderAction; const student=storedStudents[activeStudent]; if(!student) return; if(action==='pia'){ withoutTeacherHistory(()=>{ document.getElementById('evaluationToggle').click(); showEvaluationAnalytics(student); }); recordTeacherView(); return; } openStudentFolderDetail(action); });
+    document.querySelectorAll('[data-folder-action]').forEach(button=>button.onclick=()=>{ const action=button.dataset.folderAction; const student=storedStudents[activeStudent]; if(!student) return; openStudentFolderDetail(action); });
     document.getElementById('registryToggle').onclick=()=>{ const registry=document.getElementById('registry'); const phone=document.getElementById('appPhone'); const student=storedStudents[activeStudent]; if(phone.classList.contains('student-selected')&&student){ openStudentFolder(student); return; } clearStudentFolderModes(phone); clearGradingState(phone); phone.classList.remove('support-active','evaluation-active','today-view'); phone.classList.add('students-view'); if(phone.classList.contains('no-selection')) phone.classList.add('registry-only'); else phone.classList.remove('registry-only'); registry.classList.add('show'); setTeacherNavigation('registryToggle'); recordTeacherView(); window.scrollTo({top:0,behavior:'smooth'}); };
     document.getElementById('todayToggle').onclick=()=>{ const phone=document.getElementById('appPhone'); clearStudentFolderModes(phone); clearGradingState(phone); phone.classList.remove('support-active','evaluation-active','students-view'); phone.classList.add('today-view'); if(phone.classList.contains('no-selection')) phone.classList.add('registry-only'); else phone.classList.remove('registry-only'); document.getElementById('registry').classList.remove('show'); setTeacherNavigation('todayToggle'); updateTeacherClock(); renderTodayStudents(); recordTeacherView(); window.scrollTo({top:0,behavior:'smooth'}); };
     const chat=document.getElementById('supportChat');
@@ -433,6 +443,8 @@ Vëzhgoni: ${data.observationCue||'çfarë e ndihmon nxënësin.'}`;
     let parentActiveStudent=null;
     let parentSelectedMood=parentMoods[0];
     let parentSubjectAverages=[];
+    let parentFinalGrades=[];
+    let parentGradeMessages=[];
     function showParentTab(tab){ const today=tab==='today'; document.getElementById('parentTodayPanel').classList.toggle('hidden',!today); document.getElementById('parentResultsPanel').classList.toggle('hidden',today); document.getElementById('parentTodayTab').classList.toggle('active',today); document.getElementById('parentResultsTab').classList.toggle('active',!today); if(today) renderParentTeacherNotice(); }
     function renderParentMoodChoices(){ const box=document.getElementById('parentMoodChoices'); box.innerHTML=''; parentMoods.forEach(mood=>{ const button=document.createElement('button'); button.type='button'; button.className='parent-mood-choice'+(mood===parentSelectedMood?' active':''); button.innerHTML='<img src="'+parentMoodIcons[mood]+'" alt=""><span>'+mood.substring(mood.indexOf(' ')+1)+'</span>'; button.onclick=()=>{ parentSelectedMood=mood; renderParentMoodChoices(); }; box.appendChild(button); }); }
     function renderParentSubjectAverages(){ const box=document.getElementById('parentSubjectList'); box.innerHTML=''; const averages=Object.fromEntries(parentSubjectAverages.map(item=>[item.name,item.average])); subjects.forEach(name=>{ const row=document.createElement('div'); row.className='parent-subject-row'; const value=averages[name]; row.innerHTML='<strong>'+name+'</strong><span class="badge">'+(value===undefined?'Pa nota':value.toFixed(1).replace('.',',')+' / 5')+'</span>'; box.appendChild(row); }); }
@@ -443,10 +455,14 @@ Vëzhgoni: ${data.observationCue||'çfarë e ndihmon nxënësin.'}`;
       const record=mappingResult.data;
       const dbStudent=record.students;
       const student={id:dbStudent.id,name:dbStudent.first_name+' '+dbStudent.last_name,support:'',detail:'',icon:'📋'};
-      const {gradeResult,moodResult,subjectNoticeResult,teacherNoticeResult}=await fetchParentDashboardData(student.id,user.id);
+      const {gradeResult,finalGradeResult,moodResult,subjectNoticeResult,teacherNoticeResult,replyResult}=await fetchParentDashboardData(student.id,user.id);
       if(gradeResult.error) throw gradeResult.error;
+      if(finalGradeResult.error) throw finalGradeResult.error;
       if(moodResult.error) throw moodResult.error;
-      const grades=gradeResult.data||[];
+      if(replyResult.error) throw replyResult.error;
+      const grades=(gradeResult.data||[]).filter(item=>item.academic_periods?.status==='active');
+      parentFinalGrades=(finalGradeResult.data||[]).filter(item=>item.academic_periods?.status==='active');
+      parentGradeMessages=grades.filter(item=>item.parent_message);
       const grouped={};
       grades.forEach(item=>{ const name=item.subjects?item.subjects.name:'Lëndë'; if(!grouped[name]) grouped[name]=[]; grouped[name].push(Number(item.score)); });
       parentSubjectAverages=Object.entries(grouped).map(([name,values])=>({name,average:values.reduce((sum,value)=>sum+value,0)/values.length}));
@@ -459,9 +475,10 @@ Vëzhgoni: ${data.observationCue||'çfarë e ndihmon nxënësin.'}`;
       if(entries[0]){ const specific=specificByDate[entries[0].reported_on]; dailyMoods[student.name]={mood:entries[0].mood,comment:writeParentNotice(entries[0].general_comment||entries[0].parent_comment||'',specific&&specific.subjects?specific.subjects.name:'',specific?specific.comment:'')}; }
       moodHistory[student.name]=entries.map(item=>{ const specific=specificByDate[item.reported_on]; return {date:item.reported_on,mood:item.mood,comment:writeParentNotice(item.general_comment||item.parent_comment||'',specific&&specific.subjects?specific.subjects.name:'',specific?specific.comment:'')}; });
       parentTeacherNotices.splice(0,parentTeacherNotices.length,...(teacherNoticeResult.data||[]));
+      parentNoticeReplies.splice(0,parentNoticeReplies.length,...(replyResult.data||[]));
       return student;
     }
-    function showParentDashboard(student){ parentActiveStudent=student; const chapters=chaptersBySubject[activeSubject] || []; const mean=chapters.length ? (chapters.reduce((sum,item)=>sum+item.score,0)/chapters.length).toFixed(1).replace('.',',')+' / 5' : 'Pa të dhëna'; const note=dailyMoods[student.name]; parentSelectedMood=note ? note.mood : parentMoods[0]; document.getElementById('parentChildName').textContent=student.name; document.getElementById('parentChildInitials').textContent=student.name.split(' ').map(part=>part[0]).join('').slice(0,2).toUpperCase(); document.getElementById('parentMoodQuestion').textContent='Si është humori i '+student.name+' sot?'; document.getElementById('parentMoodComment').value=note ? note.comment : ''; document.getElementById('parentMoodStatus').textContent=''; document.getElementById('parentAverage').textContent=mean; document.getElementById('parentSummary').textContent=chapters.length ? 'Bazuar në '+chapters.length+' kapituj të vlerësuar.' : 'Nuk ka ende kapituj të regjistruar.'; document.getElementById('parentDetails').innerHTML='<strong>Kapitujt e fundit</strong><p class="small muted">'+(chapters.length ? chapters.map(item=>item.name+': '+item.score.toFixed(1).replace('.',',')).join(' · ') : 'Vlerësimet do të shfaqen këtu pasi mësimdhënësi t’i regjistrojë.')+'</p>'; document.getElementById('parentSubjectList').classList.add('hidden'); document.getElementById('showParentSubjects').textContent='Shiko më shumë'; renderParentMoodChoices(); renderParentMoodHistory(); renderParentSubjectAverages(); showParentTab('today'); document.getElementById('parentPage').classList.add('hidden'); document.getElementById('parentDashboard').classList.remove('hidden'); }
+    function showParentDashboard(student){ parentActiveStudent=student; const chapters=chaptersBySubject[activeSubject] || []; const mean=chapters.length ? (chapters.reduce((sum,item)=>sum+item.score,0)/chapters.length).toFixed(1).replace('.',',')+' / 5' : 'Pa të dhëna'; const note=dailyMoods[student.name]; const finalGrade=parentFinalGrades.find(item=>item.subjects?.name===activeSubject); const messages=parentGradeMessages.filter(item=>item.subjects?.name===activeSubject); parentSelectedMood=note ? note.mood : parentMoods[0]; document.getElementById('parentChildName').textContent=student.name; document.getElementById('parentChildInitials').textContent=student.name.split(' ').map(part=>part[0]).join('').slice(0,2).toUpperCase(); document.getElementById('parentMoodQuestion').textContent='Si është humori i '+student.name+' sot?'; document.getElementById('parentMoodComment').value=note ? note.comment : ''; document.getElementById('parentMoodStatus').textContent=''; document.getElementById('parentAverage').textContent=mean; document.getElementById('parentSummary').textContent=finalGrade ? 'Nota përfundimtare: '+finalGrade.grade+' / 5' : chapters.length ? 'Bazuar në '+chapters.length+' kapituj të vlerësuar.' : 'Nuk ka ende kapituj të regjistruar.'; document.getElementById('parentDetails').innerHTML='<strong>Kapitujt e fundit</strong><p class="small muted">'+(chapters.length ? chapters.map(item=>item.name+': '+item.score.toFixed(1).replace('.',',')).join(' · ') : 'Vlerësimet do të shfaqen këtu pasi mësimdhënësi t’i regjistrojë.')+'</p>'+(messages.length?'<div class="parent-grade-messages">'+messages.map(item=>'<p><strong>'+escapeHtml(item.chapters?.name||'Kapitulli')+':</strong> '+escapeHtml(item.parent_message)+'</p>').join('')+'</div>':''); document.getElementById('parentSubjectList').classList.add('hidden'); document.getElementById('showParentSubjects').textContent='Shiko më shumë'; renderParentMoodChoices(); renderParentMoodHistory(); renderParentSubjectAverages(); showParentTab('today'); document.getElementById('parentPage').classList.add('hidden'); document.getElementById('parentDashboard').classList.remove('hidden'); }
     document.getElementById('continueParent').onclick=async()=>{ const email=document.getElementById('parentEmail').value.trim(); const password=document.getElementById('parentPassword').value; const status=document.getElementById('parentStatus'); if(!email||!password){status.textContent='Shkruani email-in dhe fjalëkalimin.';return;} status.textContent='Duke u kyçur…'; const {data,error}=await supabaseClient.auth.signInWithPassword({email,password}); if(error){status.textContent='Hyrja dështoi: '+error.message;return;} try {const student=await loadParentData(data.user); showParentDashboard(student);} catch(error){await supabaseClient.auth.signOut();status.textContent='Kjo llogari nuk është e autorizuar si prind.';} };
     document.getElementById('parentBack').onclick=()=>{ document.getElementById('parentDashboard').classList.add('hidden'); document.getElementById('parentPage').classList.remove('hidden'); };
     document.getElementById('parentTodayTab').onclick=()=>showParentTab('today');
@@ -474,7 +491,6 @@ Vëzhgoni: ${data.observationCue||'çfarë e ndihmon nxënësin.'}`;
     function enhanceSupportChat(){ const panel=document.getElementById('supportPanel'); document.getElementById('supportTitlePanel').textContent='Asistenti për reagim të shpejtë'; const headBadge=panel.querySelector('.badge'); headBadge.className='assistant-avatar'; headBadge.setAttribute('aria-label','Asistenti pedagogjik'); headBadge.textContent='✦'; const intro=panel.querySelector('.assistant-intro'); intro.textContent='Shkruani pa emër apo të dhëna identifikuese çfarë po ndodh tani. Çdo përgjigje gjenerohet nga AI sipas mesazhit dhe jep hapa të menjëhershëm.'; const firstMessage=panel.querySelector('.message.agent'); firstMessage.textContent='Përshkruani shkurt sjelljen, mjedisin ose detyrën që po e nxit reagimin.'; const pupil=document.createElement('div'); pupil.className='support-student'; pupil.innerHTML='<span class="support-student-avatar">NX</span><span><strong>Nxënësi i zgjedhur</strong><br><small>Mbështetje pedagogjike pa të dhëna identifikuese</small></span>'; intro.before(pupil); const prompts=panel.querySelectorAll('[data-prompt]'); const icons=['◌','↗','◈']; prompts.forEach((button,index)=>{button.innerHTML='<span aria-hidden="true">'+icons[index]+'</span> '+button.textContent;}); const form=panel.querySelector('.chat-form'); const mic=document.createElement('button'); mic.type='button'; mic.className='voice-input'; mic.id='supportMic'; mic.setAttribute('aria-label','Dikto mesazhin'); mic.textContent='◉'; form.prepend(mic); const disclaimer=panel.querySelector('.chat-form + p'); disclaimer.classList.add('support-disclaimer'); mic.onclick=()=>{ document.getElementById('supportInput').focus(); mic.textContent='●'; setTimeout(()=>{mic.textContent='◉';},600); }; }
     const evaluationAnalyticsView=document.createElement('div'); evaluationAnalyticsView.className='evaluation-analytics'; evaluationAnalyticsView.id='evaluationAnalyticsView'; document.getElementById('evaluationPanel').appendChild(evaluationAnalyticsView);
     document.getElementById('evaluationToggle').addEventListener('click',()=>document.getElementById('evaluationPanel').classList.remove('analytics-open'));
-    document.getElementById('evaluationAnalyticsView').addEventListener('click',event=>{ if(event.target.closest('.analytics-card.pia')) alert('Dokumenti PIA shfaqet vetëm kur është ruajtur si dokument i autorizuar në profilin e nxënësit.'); });
     enhanceSupportChat();
     buildTodayWorkspace();
     const teacherMoodCalendar=document.createElement('aside'); teacherMoodCalendar.id='teacherMoodCalendar'; teacherMoodCalendar.setAttribute('aria-label','Historiku i humorit'); document.getElementById('teacherApp').appendChild(teacherMoodCalendar);
@@ -529,8 +545,9 @@ Vëzhgoni: ${data.observationCue||'çfarë e ndihmon nxënësin.'}`;
       const box=document.getElementById('parentTeacherNotice');
       if(!box||!parentActiveStudent) return;
       const notices=parentTeacherNotices.filter(item=>item.student_id===parentActiveStudent.id);
-      const notice=notices[0];
-      box.innerHTML=notice?'<div class="resource-top"><div class="notice-icon">📨</div><div><h2>Njoftim nga mësimdhënësi – sot</h2><p class="small muted">'+escapeHtml(notice.message)+'</p></div></div>':'<div class="resource-top"><div class="notice-icon">📨</div><div><h2>Njoftim nga mësimdhënësi – sot</h2><p class="small muted">Nuk ka njoftim të ri nga mësimdhënësi.</p></div></div>';
+      const replies=parentNoticeReplies.filter(item=>item.subject_parent_notices?.student_id===parentActiveStudent.id);
+      const latest=[...notices.map(item=>({...item,type:'notice'})),...replies.map(item=>({...item,type:'reply'}))].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
+      box.innerHTML=latest?'<div class="resource-top"><div class="notice-icon">📨</div><div><h2>'+(latest.type==='reply'?'Përgjigje nga mësimdhënësi':'Njoftim nga mësimdhënësi')+'</h2><p class="small muted">'+escapeHtml(latest.message)+'</p></div></div>':'<div class="resource-top"><div class="notice-icon">📨</div><div><h2>Njoftim nga mësimdhënësi</h2><p class="small muted">Nuk ka njoftim të ri nga mësimdhënësi.</p></div></div>';
     }
     function buildTeacherParentNotice(){
       const main=document.querySelector('#appPhone main');
@@ -598,19 +615,6 @@ Vëzhgoni: ${data.observationCue||'çfarë e ndihmon nxënësin.'}`;
     }
     function buildParentTrendCard(){ const panel=document.getElementById('parentResultsPanel'); const card=document.createElement('section'); card.className='card parent-progress-card'; card.innerHTML='<div class="section-head"><div><h2>Ngritjet dhe uljet</h2><p class="small muted">Tendenca për secilën lëndë.</p></div><span class="badge">Progresi</span></div><div class="parent-trend-list" id="parentSubjectTrends"></div>'; panel.appendChild(card); }
     function renderParentSubjectTrends(){ const box=document.getElementById('parentSubjectTrends'); if(!box) return; const averages=Object.fromEntries(parentSubjectAverages.map(item=>[item.name,item.average])); box.innerHTML=''; subjects.forEach(name=>{ const value=averages[name]; const row=document.createElement('div'); row.className='parent-trend-row'; if(value===undefined){ row.innerHTML='<strong>'+name+'</strong><span class="small muted">Pa të dhëna</span><div class="parent-trend-track"><div class="parent-trend-fill" style="width:0"></div></div>'; } else { const strong=value>=4; const label=strong?'↑ Ngritje e qëndrueshme':'↓ Kërkon përforcim'; row.innerHTML='<strong>'+name+'</strong><span class="'+(strong?'parent-trend-up':'parent-trend-watch')+'">'+label+'</span><div class="parent-trend-track"><div class="parent-trend-fill '+(strong?'':'watch')+'" style="width:'+(value*20)+'%"></div></div>'; } box.appendChild(row); }); }
-    function buildStudentPiaCard(){
-      const history=document.querySelector('.history.students-only');
-      const previousPia=history.querySelectorAll('.history-row')[1];
-      if(previousPia) previousPia.style.display='none';
-      const card=document.createElement('button');
-      card.type='button';
-      card.className='student-pia-card';
-      card.setAttribute('aria-label','Shiko gjendjen e Planit Individual Arsimor');
-      card.innerHTML='<div class="section-head"><span><strong>📁 Plani Individual Arsimor</strong><br><span class="small muted">PIA · sipas profilit të autorizuar</span></span><span class="badge">PIA</span></div><div class="pia-fields-compact"><div><span class="small muted">Objektivi</span><div class="pia-empty">Nga databaza</div></div><div><span class="small muted">Përshtatja</span><div class="pia-empty">Nga databaza</div></div><div><span class="small muted">Matja</span><div class="pia-empty">Nga databaza</div></div></div><span class="student-pia-open">Dokumenti hapet vetëm kur është i autorizuar</span>';
-      card.onclick=()=>alert('Dokumenti PIA nuk është i lidhur me këtë profil në këtë prototip lokal. Përdorni fushën document_path në tabelën pia_plans për dokumente reale të autorizuara.');
-      history.insertBefore(card,history.querySelector('.lock-note'));
-    }
-    buildStudentPiaCard();
     buildTeacherParentNotice();
     buildParentTeacherNotice();
     enhanceParentCommentRouting();
