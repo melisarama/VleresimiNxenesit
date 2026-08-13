@@ -7,7 +7,116 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <section class="role-gate" id="roleGate"><div class="role-card"><div class="avatar" style="margin:auto">VN</div><h1>Vlerësimi i Nxënësit</h1><p class="muted">Mirë se vini! Zgjidhni mënyrën e qasjes.</p><div class="role-options"><button class="role-option" id="teacherRole"><svg class="role-vector teacher" viewBox="0 0 48 48" aria-hidden="true"><path fill="#6f57c5" d="M24 6a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z"/><path fill="#f2c97d" d="M18 11.5c2-4.8 9.8-5.2 12 0-3 1.6-8.7 1.8-12 0Z"/><path fill="#5c8cd6" d="M12 40v-8.1c0-5.1 4.4-9.2 9.8-9.2h4.4c5.4 0 9.8 4.1 9.8 9.2V40H12Z"/><path fill="#fff" d="m20 23 4 5 4-5 3.2 3.2L24 34l-7.2-7.8L20 23Z"/><path fill="#e8b85d" d="M34 16h8v18h-8z"/><path fill="#fff7d1" d="M36.5 20h3v2h-3zm0 5h3v2h-3zm0 5h3v2h-3z"/></svg><span class="role-copy"><strong>Mësimdhënës</strong><span>Hap panelin për ndjekjen dhe vlerësimin e nxënësve.</span></span></button><button class="role-option" id="parentRole"><svg class="role-vector parent" viewBox="0 0 48 48" aria-hidden="true"><circle cx="18" cy="15" r="6" fill="#e2839f"/><circle cx="31" cy="20" r="5" fill="#f0b85e"/><path d="M7 41v-8c0-5.3 4.5-9.6 10-9.6h2c5.5 0 10 4.3 10 9.6v8H7Z" fill="#d16c91"/><path d="M24 41v-6.7c0-4.5 3.8-8.1 8.4-8.1h.8c4.6 0 8.4 3.6 8.4 8.1V41H24Z" fill="#f1ae4f"/><path d="M15 29h7v4h-7z" fill="#fff"/><path d="M29 29h5v3h-5z" fill="#fff7d6"/></svg><span class="role-copy"><strong>Prind</strong><span>Hap hapësirën e prindit për njoftime ditore.</span></span></button></div><p class="connection-status" id="databaseStatus">Duke lidhur bazën e të dhënave…</p></div></section>
+  <section class="role-gate" id="roleGate">
+    <svg class="education-tapestry" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="educationSpectrum" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#7159d4"/>
+          <stop offset=".22" stop-color="#4e9ed8"/>
+          <stop offset=".44" stop-color="#43ad91"/>
+          <stop offset=".67" stop-color="#efa75d"/>
+          <stop offset=".84" stop-color="#e66f91"/>
+          <stop offset="1" stop-color="#8b66dc"/>
+        </linearGradient>
+      </defs>
+      <g class="education-line-art" fill="none" stroke="url(#educationSpectrum)" stroke-linecap="round" stroke-linejoin="round">
+        <g transform="translate(68 74) rotate(-8 110 110)">
+          <circle cx="110" cy="110" r="72"/><path d="M38 110h144M110 38c31 27 31 117 0 144M110 38c-31 27-31 117 0 144M52 70c35 22 81 22 116 0M52 150c35-22 81-22 116 0"/>
+          <path d="M67 30 40 10M153 30l27-20M110 182v35M76 217h68"/>
+        </g>
+        <g transform="translate(1130 62) rotate(9 100 52)">
+          <rect x="8" y="12" width="202" height="74" rx="14"/><path d="M30 12v28M54 12v18M78 12v28M102 12v18M126 12v28M150 12v18M174 12v28M198 12v18"/>
+        </g>
+        <g transform="translate(1048 205)">
+          <path d="M82 10c52 0 94 42 94 94s-42 94-94 94c-15 0-27-12-27-27 0-12 8-21 18-25 9-3 14-12 11-21-3-8-12-13-21-11-29 6-55-16-55-45C8 36 41 10 82 10Z"/>
+          <circle cx="64" cy="45" r="9"/><circle cx="105" cy="37" r="9"/><circle cx="138" cy="66" r="9"/><circle cx="142" cy="108" r="9"/>
+          <path d="m49 151-30 58M32 176l27 14"/>
+        </g>
+        <g transform="translate(1110 525) rotate(5 90 115)">
+          <path d="M58 8h64M72 8v57l-49 95c-15 30 7 64 41 64h54c34 0 56-34 41-64l-51-95V8"/>
+          <path d="M47 135c29 17 61-17 90 0M42 151c35 18 66-15 101 2"/>
+          <circle cx="79" cy="174" r="6"/><circle cx="116" cy="156" r="5"/><circle cx="103" cy="195" r="4"/>
+        </g>
+        <g transform="translate(58 324) rotate(-8 105 105)">
+          <circle cx="105" cy="44" r="19"/><path d="m94 59-54 117M116 59l54 117M69 112h72M45 165h120M105 63v101"/>
+          <path d="M36 190c35-12 103-12 138 0"/>
+        </g>
+        <g transform="translate(88 586) rotate(6 125 90)">
+          <path d="M15 24c49-18 88-9 110 14v127c-22-23-61-32-110-14V24ZM235 24c-49-18-88-9-110 14v127c22-23 61-32 110-14V24Z"/>
+          <path d="M37 56c28-7 49-2 68 10M37 82c28-7 49-2 68 10M37 108c28-7 49-2 68 10M213 56c-28-7-49-2-68 10M213 82c-28-7-49-2-68 10M213 108c-28-7-49-2-68 10"/>
+        </g>
+        <g class="pencil-cluster" transform="translate(25 760) rotate(-7 150 54)">
+          <path d="m8 83 218-57 18 18L26 101 8 83Z"/><path d="m226 26 27-7-9 25M27 101l-19 4 0-22"/>
+          <path d="m92 100 184-69 20 16-188 70-16-17Z"/><path d="m276 31 28-10-8 26"/>
+        </g>
+        <g class="pencil-cluster" transform="translate(1124 746) rotate(8 150 54)">
+          <path d="m18 36 223 48 16-19L34 17 18 36Z"/><path d="m241 84 28 6-12-25M34 17 15 12l3 24"/>
+          <path d="m72 17 197 69 19-17L91 0 72 17Z"/><path d="m269 86 29 9-10-26"/>
+        </g>
+        <path d="M338 130c60 26 68 69 39 116M1006 88c-55 35-62 77-30 116M322 724c45-20 72-54 76-102M1048 700c-39-22-63-54-69-94"/>
+        <circle cx="355" cy="276" r="8"/><circle cx="1014" cy="242" r="8"/><path d="m345 286-18 18M1024 252l18 18"/>
+      </g>
+    </svg>
+    <div class="role-card landing-panel">
+      <div class="landing-logo" aria-hidden="true">
+        <svg viewBox="0 0 96 96">
+          <circle cx="48" cy="48" r="45" fill="#6851c4"/>
+          <path d="M41 40C31 28 19 28 11 33c8 3 13 8 17 14-6-2-12-1-17 2 8 3 14 8 19 15 4-2 8-6 11-10" fill="#f9d685"/>
+          <path d="M55 40c10-12 22-12 30-7-8 3-13 8-17 14 6-2 12-1 17 2-8 3-14 8-19 15-4-2-8-6-11-10" fill="#f9d685"/>
+          <path d="M48 61S33 51 33 42c0-9 11-12 15-4 4-8 15-5 15 4 0 9-15 19-15 19Z" fill="#ef8a9d" stroke="#fff4d5" stroke-width="2"/>
+          <text x="48" y="78" fill="#fff" font-size="14" font-family="system-ui,sans-serif" font-weight="800" text-anchor="middle">VN</text>
+        </svg>
+      </div>
+      <div class="landing-heading">
+        <p class="landing-kicker">Mësim i qartë · Mbështetje e kujdesshme</p>
+        <h1>Vlerësimi i Nxënësit</h1>
+        <p class="muted">Mirë se vini! Zgjidhni mënyrën e qasjes.</p>
+      </div>
+      <div class="role-options">
+        <button class="role-option teacher-entry" id="teacherRole" type="button">
+          <span class="role-illustration" aria-hidden="true">
+            <svg viewBox="0 0 124 96">
+              <path d="M15 79c-7-25 4-54 29-66 24-12 57-4 68 20 10 23-5 49-28 58-24 10-60 6-69-12Z" fill="#ded7ff"/>
+              <circle cx="57" cy="34" r="17" fill="#f2bb8f"/>
+              <path d="M41 33c0-15 9-24 22-21 9 2 14 10 13 19-9-2-17-7-22-14-2 8-7 13-13 16Z" fill="#483d72"/>
+              <circle cx="51" cy="35" r="1.6" fill="#343047"/><circle cx="64" cy="35" r="1.6" fill="#343047"/><path d="M52 43c4 3 8 3 12 0" fill="none" stroke="#9d5c59" stroke-width="2" stroke-linecap="round"/>
+              <path d="M34 88V69c0-12 10-21 22-21h5c12 0 22 9 22 21v19H34Z" fill="#755fca"/>
+              <path d="m49 49 10 12 9-12 7 6-16 17-17-17 7-6Z" fill="#fff"/>
+              <rect x="68" y="52" width="39" height="30" rx="5" fill="#3d4266"/><rect x="72" y="56" width="31" height="21" rx="3" fill="#eaf2ff"/>
+              <path d="M79 62h17M79 67h12M79 72h15" stroke="#8c7bd7" stroke-width="2" stroke-linecap="round"/>
+              <path d="M72 78c-4 6-10 8-16 5" fill="none" stroke="#f2bb8f" stroke-width="6" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="role-copy">
+            <strong>Mësimdhënës</strong>
+            <span id="teacherRoleDescription">Hap panelin për ndjekjen dhe vlerësimin e nxënësve.</span>
+            <span class="role-action">Vazhdo <b aria-hidden="true">→</b></span>
+          </span>
+        </button>
+        <button class="role-option parent-entry" id="parentRole" type="button">
+          <span class="role-illustration" aria-hidden="true">
+            <svg viewBox="0 0 124 96">
+              <path d="M12 72c-3-24 12-49 36-58 26-9 56 3 64 27 8 23-8 46-31 53-26 8-65 3-69-22Z" fill="#ffe0cf"/>
+              <circle cx="43" cy="34" r="15" fill="#eeb68d"/>
+              <path d="M29 34c-1-15 9-24 22-21 7 2 12 8 12 15-7 1-16-3-21-9-2 8-7 13-13 15Z" fill="#6d4160"/>
+              <circle cx="37" cy="35" r="1.5" fill="#353044"/><circle cx="49" cy="35" r="1.5" fill="#353044"/><path d="M38 42c3 3 7 3 10 0" fill="none" stroke="#9b5c5d" stroke-width="2" stroke-linecap="round"/>
+              <path d="M20 88V68c0-11 9-20 20-20h6c11 0 20 9 20 20v20H20Z" fill="#d97898"/>
+              <circle cx="82" cy="49" r="12" fill="#f1bd82"/><path d="M70 47c1-9 7-14 14-12 6 1 10 6 10 12-8-1-14-4-18-9-1 5-3 8-6 9Z" fill="#6c4d3c"/>
+              <path d="M66 90V71c0-8 7-15 15-15h3c9 0 16 7 16 15v19H66Z" fill="#f0ad5f"/>
+              <rect x="48" y="61" width="42" height="28" rx="5" fill="#4d5278"/><rect x="52" y="65" width="34" height="19" rx="3" fill="#f5f2ff"/>
+              <path d="M58 71h21M58 76h16" stroke="#8a76d4" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="role-copy">
+            <strong>Prind</strong>
+            <span id="parentRoleDescription">Hap hapësirën e prindit për njoftime ditore.</span>
+            <span class="role-action">Vazhdo <b aria-hidden="true">→</b></span>
+          </span>
+        </button>
+      </div>
+      <p class="connection-status" id="databaseStatus">Duke lidhur bazën e të dhënave…</p>
+    </div>
+  </section>
   <section class="role-gate hidden" id="teacherLogin"><div class="role-card"><div class="avatar" style="margin:auto">M</div><h1>Hyrja e mësimdhënësit</h1><p class="muted">Kyçuni me llogarinë tuaj të shkollës.</p><label>Email<input id="teacherEmail" type="email" autocomplete="email" placeholder="mesimdhenesi@test.com"></label><label>Fjalëkalimi<span class="password-field"><input id="teacherPassword" type="password" autocomplete="current-password" placeholder="●●●●●●●●"><button class="password-toggle" id="teacherPasswordToggle" type="button" aria-label="Shfaq fjalëkalimin">◉</button></span></label><button class="btn primary" id="continueTeacher">Hyr</button><p class="small muted" id="teacherLoginStatus"></p><button class="btn" id="backToRolesTeacher">← Kthehu</button></div></section>
   <section class="role-gate hidden" id="parentPage"><div class="role-card"><div class="avatar" style="margin:auto">P</div><h1>Hapësira e prindit</h1><p class="muted">Kyçuni për të parë dhe njoftuar për fëmijën tuaj.</p><label>Email<input id="parentEmail" type="email" autocomplete="email" placeholder="parent@test.com"></label><label>Fjalëkalimi<span class="password-field"><input id="parentPassword" type="password" autocomplete="current-password" placeholder="●●●●●●●●"><button class="password-toggle" id="parentPasswordToggle" type="button" aria-label="Shfaq fjalëkalimin">◉</button></span></label><button class="btn primary" id="continueParent">Hyr</button><p class="small muted" id="parentStatus"></p><button class="btn" id="backToRoles">← Kthehu</button></div></section>
   <section class="role-gate hidden" id="parentDashboard"><div class="role-card"><div class="section-head"><button class="btn" id="parentBack" aria-label="Kthehu">←</button><strong id="parentPageTitle">Hapësira e prindit</strong><span></span></div><div class="avatar" style="margin:18px auto 8px" id="parentChildInitials">EK</div><h1 id="parentChildName">Nxënësi</h1><section class="parent-panel" id="parentTodayPanel"><div class="card parent-mood-card"><h2 id="parentMoodQuestion">Si është humori i nxënësit sot?</h2><p class="small muted" style="margin-top:5px">Zgjidhni disponimin që mësimdhënësi duhet ta dijë para mësimit.</p><div class="parent-mood-choices" id="parentMoodChoices"></div></div><div class="card parent-comment-card"><h2>Koment shtesë</h2><label style="margin-top:12px"><span class="sr-only">Koment shtesë</span><textarea id="parentMoodComment" placeholder="P.sh. ka fjetur pak dhe ka nevojë për një fillim të qetë."></textarea></label><button class="btn primary" style="margin-top:12px" id="saveParentMood">Dërgo njoftimin</button><p class="small muted" id="parentMoodStatus" style="margin-top:8px"></p><button class="btn" style="margin-top:12px" id="parentHistoryToggle">Historiku</button><div class="parent-history" id="parentMoodHistory"></div></div></section><section class="parent-panel hidden" id="parentResultsPanel"><p class="muted">Rezultatet e vazhdueshme</p><div class="card" style="padding:15px;margin-top:12px"><strong>Mesatarja aktuale</strong><p class="score" id="parentAverage">Pa të dhëna</p><p class="small muted" id="parentSummary">Nuk ka ende kapituj të regjistruar.</p></div><div class="card" style="padding:15px;margin-top:12px"><h2>Lëndët</h2><p class="small muted" style="margin-top:5px">Mesatarja për secilën lëndë.</p><button class="btn" style="margin-top:12px" id="showParentSubjects">Shiko më shumë</button><div class="parent-subject-list hidden" id="parentSubjectList"></div></div><div class="card" style="padding:15px;margin-top:12px" id="parentDetails"></div></section><button class="btn" style="margin-top:14px" id="parentLogout">Dil</button><nav class="parent-nav" aria-label="Navigimi i prindit"><button class="active" id="parentTodayTab" type="button"><span class="parent-nav-icon">☀</span><span>Sot</span></button><button id="parentResultsTab" type="button"><span class="parent-nav-icon">✦</span><span>Rezultati</span></button></nav></div></section>

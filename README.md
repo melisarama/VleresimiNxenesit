@@ -24,6 +24,15 @@ As of this handoff, the repository can run locally against the hosted Supabase p
 - `package.json` contains local scripts for the frontend server, Supabase CLI, migrations, seed, and checks.
 - Supabase Auth is the identity layer; user role and school come from `profiles`, not from a frontend selector.
 
+## Change Log
+
+### 2026-08-13
+
+- Redesigned the role-selection landing page with a solid white central panel over a pastel educational line-art tapestry.
+- Added an original VN emblem with wings and a heart, plus custom vector illustrations for the teacher and parent access paths.
+- Improved mobile reflow, keyboard focus states, contrast, reduced-motion support, and visual hierarchy without changing the existing role navigation logic.
+- Excluded local PowerShell server logs from Git tracking.
+
 ## What This Pass Implements
 
 - Splits the previous monolithic HTML into separate HTML, CSS, and JavaScript files.

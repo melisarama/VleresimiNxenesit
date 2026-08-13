@@ -397,3 +397,242 @@
     nav button.active { color:var(--violet); font-weight:750; }
     nav button.active .nav-icon { color:white; background:linear-gradient(135deg,var(--violet),#8c7bdf); box-shadow:0 5px 12px rgba(107,91,199,.28); }
     @media (max-width:380px) { .app { padding:0; } .phone { min-height:100vh; border-radius:0; } }
+
+    /* Illustrated educational landing page */
+    #roleGate {
+      position:relative;
+      isolation:isolate;
+      min-height:100svh;
+      overflow:hidden;
+      padding:56px 24px;
+      background:
+        radial-gradient(circle at 14% 16%,rgba(255,255,255,.94) 0 5%,transparent 24%),
+        radial-gradient(circle at 86% 80%,rgba(255,246,239,.88) 0 6%,transparent 27%),
+        linear-gradient(132deg,#f1ecff 0%,#e8f4ff 37%,#fff0e8 70%,#e9f7f3 100%);
+      background-size:130% 130%;
+      animation:landingPastels 16s ease-in-out infinite alternate;
+    }
+    #roleGate::before,
+    #roleGate::after {
+      content:"";
+      position:absolute;
+      z-index:-1;
+      border-radius:50%;
+      pointer-events:none;
+      filter:blur(4px);
+    }
+    #roleGate::before {
+      width:420px;
+      height:420px;
+      top:-210px;
+      right:-120px;
+      background:rgba(194,178,255,.22);
+    }
+    #roleGate::after {
+      width:380px;
+      height:380px;
+      bottom:-210px;
+      left:-110px;
+      background:rgba(255,188,163,.2);
+    }
+    .education-tapestry {
+      position:absolute;
+      z-index:-1;
+      inset:0;
+      width:100%;
+      height:100%;
+      opacity:.74;
+      pointer-events:none;
+      transform-origin:center;
+      animation:educationColors 12s ease-in-out infinite alternate;
+    }
+    .education-line-art {
+      stroke-width:3;
+      vector-effect:non-scaling-stroke;
+    }
+    .education-line-art > g,
+    .education-line-art > path,
+    .education-line-art > circle { opacity:.74; }
+    #roleGate .landing-panel {
+      position:relative;
+      z-index:2;
+      width:calc(100vw - 48px);
+      max-width:530px;
+      min-width:0;
+      padding:35px 34px 28px;
+      border:1px solid rgba(255,255,255,.96);
+      border-radius:36px;
+      background:#fff;
+      box-shadow:0 30px 75px rgba(73,62,112,.18),0 8px 22px rgba(73,62,112,.08);
+      text-align:center;
+      backdrop-filter:none;
+    }
+    .landing-logo {
+      width:88px;
+      height:88px;
+      margin:-3px auto 0;
+      filter:drop-shadow(0 12px 17px rgba(80,60,156,.24));
+    }
+    .landing-logo svg { display:block; width:100%; height:100%; }
+    .landing-heading { margin-top:15px; }
+    #roleGate .landing-kicker {
+      margin:0 0 7px;
+      color:#6554a0;
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:.1em;
+      text-transform:uppercase;
+    }
+    #roleGate .landing-heading h1 {
+      margin:0 0 7px !important;
+      color:#26203f;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+      font-size:30px;
+      font-weight:800;
+      letter-spacing:-.045em;
+    }
+    #roleGate .landing-heading .muted {
+      color:#5e586e;
+      font-size:14px;
+      letter-spacing:.01em;
+    }
+    #roleGate .role-options {
+      display:grid;
+      gap:14px;
+      margin-top:27px;
+      padding:0;
+      border:0;
+      border-radius:0;
+      background:transparent;
+    }
+    #roleGate .role-option {
+      display:grid;
+      grid-template-columns:112px minmax(0,1fr);
+      align-items:center;
+      gap:18px;
+      width:100%;
+      min-height:126px;
+      padding:14px 17px 14px 12px;
+      overflow:hidden;
+      border:1px solid transparent;
+      border-radius:24px;
+      box-shadow:0 9px 22px rgba(78,68,111,.08),inset 0 1px 0 rgba(255,255,255,.72);
+      color:#29233f;
+      text-align:left;
+      transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
+    }
+    #roleGate .teacher-entry {
+      border-color:#ded7f8;
+      background:linear-gradient(135deg,#f3f0ff 0%,#e9efff 100%);
+    }
+    #roleGate .parent-entry {
+      border-color:#f1dacc;
+      background:linear-gradient(135deg,#fff4ee 0%,#ffebe4 100%);
+    }
+    #roleGate .role-option:hover,
+    #roleGate .role-option:focus-visible {
+      transform:translateY(-3px);
+      outline:3px solid rgba(114,87,205,.18);
+      outline-offset:2px;
+      border-color:#8267d6;
+      box-shadow:0 15px 30px rgba(76,61,126,.14),inset 0 1px 0 rgba(255,255,255,.82);
+    }
+    #roleGate .role-illustration {
+      display:grid;
+      place-items:center;
+      width:112px;
+      height:94px;
+      margin:0;
+      color:inherit;
+    }
+    #roleGate .role-illustration svg { display:block; width:100%; height:100%; }
+    #roleGate .role-copy {
+      display:block;
+      min-width:0;
+      margin:0;
+      color:#575166;
+    }
+    #roleGate .role-copy strong {
+      display:block;
+      margin:0 0 5px;
+      color:#28213f;
+      font-size:17px;
+      font-weight:800;
+      letter-spacing:-.015em;
+    }
+    #roleGate .role-copy > span:not(.role-action) {
+      display:block;
+      margin:0;
+      color:#575166;
+      font-size:13px;
+      line-height:1.45;
+    }
+    #roleGate .role-action {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      width:max-content;
+      margin:9px 0 0;
+      color:#5d46b2;
+      font-size:12px;
+      font-weight:800;
+    }
+    #roleGate .parent-entry .role-action { color:#a45069; }
+    #roleGate .role-action b { font-size:16px; line-height:1; }
+    #roleGate .connection-status {
+      margin:20px 0 0;
+      color:#544b69;
+      font-size:12px;
+      font-weight:700;
+      text-align:center;
+      text-shadow:none;
+    }
+    #roleGate .connection-status::before {
+      content:"";
+      display:inline-block;
+      width:8px;
+      height:8px;
+      margin-right:7px;
+      border-radius:50%;
+      background:#4f9c7f;
+      box-shadow:0 0 0 4px rgba(79,156,127,.12);
+      vertical-align:1px;
+    }
+    @keyframes landingPastels {
+      from { background-position:0% 0%; }
+      to { background-position:100% 100%; }
+    }
+    @keyframes educationColors {
+      from { filter:saturate(.95) hue-rotate(0deg); transform:scale(1); }
+      to { filter:saturate(1.12) hue-rotate(18deg); transform:scale(1.014); }
+    }
+    @media (max-width:700px) {
+      #roleGate { padding:30px 16px; }
+      .education-tapestry { width:155%; left:-27%; opacity:.58; }
+      .education-line-art { stroke-width:2.7; }
+      #roleGate .landing-panel { width:calc(100vw - 32px); max-width:470px; padding:30px 24px 24px; border-radius:31px; }
+      .landing-logo { width:80px; height:80px; }
+      #roleGate .landing-heading h1 { font-size:27px; }
+      #roleGate .role-option { grid-template-columns:94px minmax(0,1fr); gap:13px; min-height:116px; padding:12px 15px 12px 10px; border-radius:21px; }
+      #roleGate .role-illustration { width:94px; height:82px; }
+    }
+    @media (max-width:390px) {
+      #roleGate { padding:18px 11px; }
+      #roleGate .landing-panel { padding:25px 16px 21px; border-radius:27px; }
+      .landing-logo { width:72px; height:72px; }
+      .landing-heading { margin-top:11px; }
+      #roleGate .landing-kicker { font-size:9px; letter-spacing:.07em; }
+      #roleGate .landing-heading h1 { font-size:24px; }
+      #roleGate .landing-heading .muted { font-size:13px; }
+      #roleGate .role-options { gap:11px; margin-top:21px; }
+      #roleGate .role-option { grid-template-columns:78px minmax(0,1fr); gap:10px; min-height:108px; padding:10px 12px 10px 8px; border-radius:19px; }
+      #roleGate .role-illustration { width:78px; height:74px; }
+      #roleGate .role-copy strong { font-size:15px; }
+      #roleGate .role-copy > span:not(.role-action) { font-size:11.5px; }
+      #roleGate .role-action { margin-top:6px; }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      #roleGate,
+      .education-tapestry { animation:none; }
+      #roleGate .role-option { transition:none; }
+    }
