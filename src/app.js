@@ -1,27 +1,30 @@
-const appConfig=window.MESIMI_CONFIG||{};
-    const supabaseUrl=appConfig.supabaseUrl;
-    const supabasePublishableKey=appConfig.supabasePublishableKey;
-    if(!supabaseUrl||!supabasePublishableKey) throw new Error('Supabase configuration is missing. Create .env for local development or provide src/config.js in static hosting.');
-    const supabaseClient=window.supabase.createClient(supabaseUrl,supabasePublishableKey);
+import { supabaseClient } from './lib/supabaseClient.js';
+import { todayIso } from './utils/dates.js';
+import { escapeHtml } from './utils/html.js';
+import { noticeHistoryMarkup, readParentNotice, writeParentNotice } from './utils/notices.js';
+import { moodData, parentMoodIcons, parentMoods, preferences, scores, subjects } from './data/staticData.js';
+import { fetchParentDashboardData, fetchParentStudentMapping } from './services/parentService.js';
+import { initializeAdminWorkflow } from './admin/admin.js';
+import { initializeAccountSetup } from './auth/accountSetup.js';
+import { fetchTeacherDashboardData } from './services/teacherService.js';
+
     let currentUser=null;
     let currentTeacherId=null;
     let activeSubjectId=null;
     const teacherNoticeRows=[];
     const parentTeacherNotices=[];
     function userMessage(error,fallback='Nuk mund të lidhemi me të dhënat. Provoni përsëri.'){ console.warn(fallback,error); return fallback; }
-    function todayIso(){ return new Date().toISOString().slice(0,10); }
     async function verifySupabaseConnection(){ const status=document.getElementById('databaseStatus'); try { const {error}=await supabaseClient.auth.getSession(); if(error) throw error; status.textContent='✓ Baza e të dhënave u lidh në mënyrë të sigurt.'; } catch(error) { status.textContent='Lidhja me bazën e të dhënave nuk u verifikua. Rifreskoni faqen.'; console.warn('Supabase connection:',error.message); } }
     verifySupabaseConnection();
+    initializeAccountSetup();
+    initializeAdminWorkflow();
     document.getElementById('teacherRole').onclick=()=>{ document.getElementById('roleGate').classList.add('hidden'); document.getElementById('teacherLogin').classList.remove('hidden'); };
     document.getElementById('parentRole').onclick=()=>{ document.getElementById('roleGate').classList.add('hidden'); document.getElementById('parentPage').classList.remove('hidden'); };
     document.getElementById('backToRoles').onclick=()=>{ document.getElementById('parentPage').classList.add('hidden'); document.getElementById('roleGate').classList.remove('hidden'); };
     document.getElementById('backToRolesTeacher').onclick=()=>{ document.getElementById('teacherLogin').classList.add('hidden'); document.getElementById('roleGate').classList.remove('hidden'); };
     document.getElementById('teacherPasswordToggle').onclick=()=>{ const field=document.getElementById('teacherPassword'); const button=document.getElementById('teacherPasswordToggle'); const visible=field.type==='text'; field.type=visible?'password':'text'; button.textContent=visible?'◉':'◌'; button.setAttribute('aria-label',visible?'Shfaq fjalëkalimin':'Fshih fjalëkalimin'); };
     document.getElementById('parentPasswordToggle').onclick=()=>{ const field=document.getElementById('parentPassword'); const button=document.getElementById('parentPasswordToggle'); const visible=field.type==='text'; field.type=visible?'password':'text'; button.textContent=visible?'◉':'◌'; button.setAttribute('aria-label',visible?'Shfaq fjalëkalimin':'Fshih fjalëkalimin'); };
-    const subjects = ['Matematikë','Gjuhë shqipe','Anglisht','Shkencat natyrore','Shoqëria dhe mjedisi','TIK','Art figurativ','Edukatë muzikore','Edukatë fizike','Aftësi për jetë','Histori','Gjeografi'];
-    const scores = { 'Matematikë':['3,8','2 kapituj kërkojnë mbështetje'],'Gjuhë shqipe':['4,2','Në objektivin e pritur'],'Anglisht':['3,9','Përforco fjalorin'],'Shkencat natyrore':['4,1','Në objektivin e pritur'],'Shoqëria dhe mjedisi':['4,0','Në objektivin e pritur'],'TIK':['4,5','Pikë e fortë'],'Art figurativ':['4,8','Pikë e fortë'],'Edukatë muzikore':['3,4','Udhëzime të lexueshme me zë'],'Edukatë fizike':['4,0','Në objektivin e pritur'],'Aftësi për jetë':['4,3','Në objektivin e pritur'],'Histori':['3,7','Përdor përshkrime me zë'],'Gjeografi':['3,9','Përforco drejtimet me përshkrime'] };
-    const preferences = { writing:['Shkrim','Sugjerimet përfshijnë përgjigje të shkruara dhe fletë pune.','Fletë pune e shkruar: Thyesat','Ushtrime të shkruara me tekst të madh, që lexohen me zë sipas nevojës.'], drawing:['Vizatim','Sugjerimet përfshijnë skica, ngjyra dhe paraqitje vizuale.','Vizato thyesat','Krijo modele me forma dhe ngjyra; çdo hap shpjegohet edhe me zë.'], practice:['Praktikë','Sugjerimet përfshijnë detyra të shkurtra dhe prova praktike.','Mini-sfidë praktike: Thyesat','Tre ushtrime të shkurtra me objekte të përditshme dhe udhëzime me zë.'], reading:['Lexim','Sugjerimet përfshijnë tekste të shkurtra, të qarta dhe pyetje kuptimore.','Lexo dhe gjej idenë kryesore','Një tekst i shkurtër me fjalë kyçe të theksuara dhe tri pyetje të thjeshta.'], listening:['Dëgjim','Sugjerimet përfshijnë audio, udhëzime të lexuara me zë dhe ritëm të përshtatshëm.','Dëgjo dhe përgjigju','Një audio e shkurtër me pauza mes hapave dhe pyetje me përgjigje të shkurtra.'], movement:['Lëvizje','Sugjerimet përfshijnë aktivitet fizik të shkurtër dhe mësim përmes lëvizjes.','Stacione mësimore: Thyesat','Lëvizje mes tri stacioneve të shkurtra me një detyrë të qartë në secilin stacion.'], collaboration:['Bashkëpunim','Sugjerimet përfshijnë punë në çift ose grup të vogël me role të qarta.','Puno në çift: Thyesat','Një aktivitet në çift ku njëri shpjegon hapin dhe tjetri e kontrollon përgjigjen.'] };
-    const moodData = { happy:['E lumtur','Sfida me zë: Thyesat','Një mini-sfidë e lexueshme me zë për të përdorur energjinë pozitive.'], calm:['E qetë',null,null], distracted:['E shpërqendruar','Hapa të shkurtër: Thyesat','Tre ushtrime shumë të shkurtra, të lexuara me zë, me pauzë pas çdo hapi.'], sad:['E trishtuar','Aktivitet i lehtë me zë','Një ushtrim i qetë, pa presion, me përforcim pozitiv dhe lexim të ngadaltë.'] };
+
     const studentBox = document.getElementById('studentList');
     const todayStudentBox = document.getElementById('todayStudentList');
     const storedStudents = [];
@@ -40,24 +43,6 @@ const appConfig=window.MESIMI_CONFIG||{};
     }
     updateTeacherClock();
     setInterval(updateTeacherClock,60000);
-    function readParentNotice(raw){
-      const fallback={general:typeof raw==='string'?raw:'',subject:'',specific:''};
-      if(!raw||typeof raw!=='string'||raw.trim()[0]!=='{') return fallback;
-      try {
-        const parsed=JSON.parse(raw);
-        if(parsed&&parsed.version===2) return {general:String(parsed.general||''),subject:String(parsed.subject||''),specific:String(parsed.specific||'')};
-      } catch(error) {}
-      return fallback;
-    }
-    function writeParentNotice(general,subject,specific){ return JSON.stringify({version:2,general:general||'',subject:specific?subject:'',specific:specific||''}); }
-    function escapeHtml(value){ return String(value||'').replace(/[&<>"]/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[character])); }
-    function noticeHistoryMarkup(raw,teacherSubject=''){
-      const notice=readParentNotice(raw);
-      const rows=[];
-      if(notice.general) rows.push('<p><strong>Për të gjithë:</strong> '+escapeHtml(notice.general)+'</p>');
-      if(notice.specific&&(!teacherSubject||notice.subject===teacherSubject)) rows.push('<p><strong>Vetëm për '+escapeHtml(notice.subject)+':</strong> '+escapeHtml(notice.specific)+'</p>');
-      return rows.join('');
-    }
     const chaptersBySubject = {};
     const gradeHistoryByChapter = {};
     let activeStudent = 0;
@@ -70,16 +55,7 @@ const appConfig=window.MESIMI_CONFIG||{};
     async function loadTeacherData(user){
       currentUser=user;
       currentTeacherId=user.id;
-      const [profileResult,subjectResult,studentResult,supportResult,chapterResult,gradeResult,moodResult,teacherNoticeResult]=await Promise.all([
-        supabaseClient.from('profiles').select('*').eq('id',user.id).eq('role','teacher').eq('active',true).single(),
-        supabaseClient.from('teacher_subjects').select('subject_id,subjects(id,name)').eq('teacher_id',user.id),
-        supabaseClient.from('students').select('*'),
-        supabaseClient.from('student_support_profiles').select('*'),
-        supabaseClient.from('chapters').select('id,name,subject_id,subjects(id,name)').eq('active',true),
-        supabaseClient.from('grades').select('score,student_id,chapter_id,subject_id,chapters(id,name),subjects(id,name)'),
-        supabaseClient.from('daily_moods').select('student_id,mood,parent_comment,reported_on').order('reported_on',{ascending:false}),
-        supabaseClient.from('teacher_parent_notices').select('id,student_id,teacher_id,message,created_at,read_at').order('created_at',{ascending:false})
-      ]);
+      const {profileResult,subjectResult,studentResult,supportResult,chapterResult,gradeResult,moodResult,teacherNoticeResult}=await fetchTeacherDashboardData(user.id);
       if(profileResult.error) throw profileResult.error;
       if(studentResult.error) throw studentResult.error;
       if(subjectResult.error) throw subjectResult.error;
@@ -446,28 +422,21 @@ Vëzhgoni: ${data.observationCue||'çfarë e ndihmon nxënësin.'}`;
     document.getElementById('supportToggle').onclick=()=>{ const panel=document.getElementById('supportPanel'); const phone=document.getElementById('appPhone'); clearStudentFolderModes(phone); clearGradingState(phone); phone.classList.remove('evaluation-active','today-view','students-view','registry-only'); phone.classList.add('support-active'); document.getElementById('registry').classList.remove('show'); panel.classList.add('show'); setTeacherNavigation('supportToggle'); recordTeacherView(); window.scrollTo({top:0,behavior:'smooth'}); };
     document.getElementById('evaluationToggle').onclick=()=>{ const phone=document.getElementById('appPhone'); clearStudentFolderModes(phone); clearGradingState(phone); phone.classList.remove('support-active','today-view','students-view','registry-only'); phone.classList.add('evaluation-active'); document.getElementById('evaluationPanel').classList.remove('analytics-open'); setTeacherNavigation('evaluationToggle'); renderEvaluationFolders(); recordTeacherView(); window.scrollTo({top:0,behavior:'smooth'}); };
     document.getElementById('addStudent').onclick=()=>{ document.getElementById('newStudent').value=''; document.getElementById('studentCount').textContent=storedStudents.length+' nxënës'; alert('Shtimi i nxënësve bëhet nga administratori i shkollës, që të ruhen klasa, shkolla dhe autorizimet.'); };
-    const parentMoods=['😊 E lumtur','😌 E qetë','😟 E shqetësuar','😵‍💫 E shpërqendruar','😔 E trishtuar','😠 E irrituar'];
-    const parentMoodIcons={'😊 E lumtur':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f60a.svg','😌 E qetë':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f60c.svg','😟 E shqetësuar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f61f.svg','😵‍💫 E shpërqendruar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f635-200d-1f4ab.svg','😔 E trishtuar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f614.svg','😠 E irrituar':'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f620.svg'};
+
     let parentActiveStudent=null;
     let parentSelectedMood=parentMoods[0];
     let parentSubjectAverages=[];
     function showParentTab(tab){ const today=tab==='today'; document.getElementById('parentTodayPanel').classList.toggle('hidden',!today); document.getElementById('parentResultsPanel').classList.toggle('hidden',today); document.getElementById('parentTodayTab').classList.toggle('active',today); document.getElementById('parentResultsTab').classList.toggle('active',!today); if(today) renderParentTeacherNotice(); }
     function renderParentMoodChoices(){ const box=document.getElementById('parentMoodChoices'); box.innerHTML=''; parentMoods.forEach(mood=>{ const button=document.createElement('button'); button.type='button'; button.className='parent-mood-choice'+(mood===parentSelectedMood?' active':''); button.innerHTML='<img src="'+parentMoodIcons[mood]+'" alt=""><span>'+mood.substring(mood.indexOf(' ')+1)+'</span>'; button.onclick=()=>{ parentSelectedMood=mood; renderParentMoodChoices(); }; box.appendChild(button); }); }
-    function renderParentMoodHistory(){ const box=document.getElementById('parentMoodHistory'); const entries=parentActiveStudent ? (moodHistory[parentActiveStudent.name] || []) : []; const reference=entries[0] ? new Date(entries[0].date+'T12:00:00') : new Date(); const year=reference.getFullYear(); const month=reference.getMonth(); const months=['Janar','Shkurt','Mars','Prill','Maj','Qershor','Korrik','Gusht','Shtator','Tetor','Nëntor','Dhjetor']; const weekdays=['Di','Hë','Ma','Më','En','Pr','Sh']; const firstDay=new Date(year,month,1).getDay(); const totalDays=new Date(year,month+1,0).getDate(); const moodsByDay=Object.fromEntries(entries.filter(entry=>{const date=new Date(entry.date+'T12:00:00'); return date.getFullYear()===year&&date.getMonth()===month;}).map(entry=>[new Date(entry.date+'T12:00:00').getDate(),entry])); let calendar=weekdays.map(day=>'<span class="history-day-label">'+day+'</span>').join(''); for(let i=0;i<firstDay;i++) calendar+='<span class="history-day empty">·</span>'; for(let day=1;day<=totalDays;day++){ const item=moodsByDay[day]; const display=item ? item.mood.split(' ')[0] : day; const label=item ? 'Dita '+day+': '+item.mood : 'Dita '+day+', pa njoftim'; calendar+='<span class="history-day'+(item?'':' empty')+'" aria-label="'+label+'">'+display+'</span>'; } const comments=entries.filter(entry=>entry.comment).map(entry=>{const date=new Date(entry.date+'T12:00:00'); const row=document.createElement('article'); row.className='parent-history-item'; row.innerHTML='<strong>'+months[date.getMonth()]+' '+date.getDate()+'</strong><p class="small">'+entry.comment+'</p>'; return row.outerHTML;}).join('') || '<p class="small muted">Nuk ka komente shtesë për këtë muaj.</p>'; box.innerHTML='<div class="history-panel-head"><div><p class="small muted">Historiku</p><h2>'+months[month]+' '+year+'</h2></div><button class="history-close" type="button" data-close-history aria-label="Mbyll historikun">×</button></div><div class="history-calendar" aria-label="Kalendari i humorit">'+calendar+'</div><h3 class="history-summary">Përmbledhja e komenteve mujore</h3><div class="history-entry-list">'+comments+'</div>'; box.querySelector('[data-close-history]').onclick=()=>{box.classList.remove('show');document.getElementById('parentHistoryToggle').setAttribute('aria-expanded','false');}; }
     function renderParentSubjectAverages(){ const box=document.getElementById('parentSubjectList'); box.innerHTML=''; const averages=Object.fromEntries(parentSubjectAverages.map(item=>[item.name,item.average])); subjects.forEach(name=>{ const row=document.createElement('div'); row.className='parent-subject-row'; const value=averages[name]; row.innerHTML='<strong>'+name+'</strong><span class="badge">'+(value===undefined?'Pa nota':value.toFixed(1).replace('.',',')+' / 5')+'</span>'; box.appendChild(row); }); }
     async function loadParentData(user){
       currentUser=user;
-      const mappingResult=await supabaseClient.from('parent_students').select('student_id,students(id,first_name,last_name,class_name)').eq('parent_id',user.id).order('student_id').limit(1).single();
+      const mappingResult=await fetchParentStudentMapping(user.id);
       if(mappingResult.error) throw mappingResult.error;
       const record=mappingResult.data;
       const dbStudent=record.students;
       const student={id:dbStudent.id,name:dbStudent.first_name+' '+dbStudent.last_name,support:'',detail:'',icon:'📋'};
-      const [gradeResult,moodResult,subjectNoticeResult,teacherNoticeResult]=await Promise.all([
-        supabaseClient.from('grades').select('score,chapter_id,chapters(name),subjects(name)').eq('student_id',student.id),
-        supabaseClient.from('daily_moods').select('mood,parent_comment,general_comment,reported_on').eq('student_id',student.id).order('reported_on',{ascending:false}),
-        supabaseClient.from('subject_parent_notices').select('student_id,parent_id,subject_id,comment,created_at,subjects(name)').eq('student_id',student.id).eq('parent_id',user.id).order('created_at',{ascending:false}),
-        supabaseClient.from('teacher_parent_notices').select('id,student_id,teacher_id,message,created_at,read_at').eq('student_id',student.id).order('created_at',{ascending:false})
-      ]);
+      const {gradeResult,moodResult,subjectNoticeResult,teacherNoticeResult}=await fetchParentDashboardData(student.id,user.id);
       if(gradeResult.error) throw gradeResult.error;
       if(moodResult.error) throw moodResult.error;
       const grades=gradeResult.data||[];
@@ -502,7 +471,6 @@ Vëzhgoni: ${data.observationCue||'çfarë e ndihmon nxënësin.'}`;
     enhanceSupportChat();
     buildTodayWorkspace();
     const teacherMoodCalendar=document.createElement('aside'); teacherMoodCalendar.id='teacherMoodCalendar'; teacherMoodCalendar.setAttribute('aria-label','Historiku i humorit'); document.getElementById('teacherApp').appendChild(teacherMoodCalendar);
-    function renderTeacherMoodCalendar(){ const box=document.getElementById('teacherMoodCalendar'); const student=storedStudents[activeStudent]; const entries=student?(moodHistory[student.name]||[]):[]; const reference=entries[0] ? new Date(entries[0].date+'T12:00:00') : new Date(); const year=reference.getFullYear(); const month=reference.getMonth(); const months=['Janar','Shkurt','Mars','Prill','Maj','Qershor','Korrik','Gusht','Shtator','Tetor','Nëntor','Dhjetor']; const weekdays=['Di','Hë','Ma','Më','En','Pr','Sh']; const firstDay=new Date(year,month,1).getDay(); const totalDays=new Date(year,month+1,0).getDate(); const moodsByDay=Object.fromEntries(entries.filter(entry=>{const date=new Date(entry.date+'T12:00:00'); return date.getFullYear()===year&&date.getMonth()===month;}).map(entry=>[new Date(entry.date+'T12:00:00').getDate(),entry])); let calendar=weekdays.map(day=>'<span class="history-day-label">'+day+'</span>').join(''); for(let i=0;i<firstDay;i++) calendar+='<span class="history-day empty">·</span>'; for(let day=1;day<=totalDays;day++){ const item=moodsByDay[day]; const display=item ? item.mood.split(' ')[0] : day; const label=item ? 'Dita '+day+': '+item.mood : 'Dita '+day+', pa njoftim'; calendar+='<span class="history-day'+(item?'':' empty')+'" aria-label="'+label+'">'+display+'</span>'; } const comments=entries.filter(entry=>entry.comment).map(entry=>{const date=new Date(entry.date+'T12:00:00'); return '<article class="parent-history-item"><strong>'+months[date.getMonth()]+' '+date.getDate()+'</strong><p class="small">'+entry.comment+'</p></article>';}).join('') || '<p class="small muted">Nuk ka komente shtesë për këtë muaj.</p>'; box.innerHTML='<div class="history-panel-head"><div><p class="small muted">Historiku</p><h2>'+months[month]+' '+year+'</h2></div><button class="history-close" type="button" data-close-teacher-history aria-label="Mbyll historikun">×</button></div><div class="history-calendar" aria-label="Kalendari i humorit">'+calendar+'</div><h3 class="history-summary">Përmbledhja e komenteve mujore</h3><div class="history-entry-list">'+comments+'</div>'; box.querySelector('[data-close-teacher-history]').onclick=()=>{box.classList.remove('show');document.getElementById('teacherMoodHistory').setAttribute('aria-expanded','false');}; }
     function renderParentMoodHistory(){
       const box=document.getElementById('parentMoodHistory');
       const entries=parentActiveStudent?(moodHistory[parentActiveStudent.name]||[]):[];

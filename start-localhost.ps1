@@ -53,8 +53,13 @@ function Send-Json {
 function Get-StaticContentType {
     param([string]$Path)
     switch ([System.IO.Path]::GetExtension($Path).ToLowerInvariant()) {
+        '.html' { 'text/html; charset=utf-8' }
         '.css' { 'text/css; charset=utf-8' }
         '.js' { 'application/javascript; charset=utf-8' }
+        '.png' { 'image/png' }
+        '.jpg' { 'image/jpeg' }
+        '.jpeg' { 'image/jpeg' }
+        '.svg' { 'image/svg+xml' }
         '.pdf' { 'application/pdf' }
         default { 'application/octet-stream' }
     }
@@ -68,7 +73,11 @@ function Try-Send-StaticFile {
         return $true
     }
     $relative = $normalized.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
-    if (-not ($relative.StartsWith('css' + [System.IO.Path]::DirectorySeparatorChar) -or $relative.StartsWith('src' + [System.IO.Path]::DirectorySeparatorChar))) {
+    if (-not (
+        $relative.StartsWith('css' + [System.IO.Path]::DirectorySeparatorChar) -or
+        $relative.StartsWith('src' + [System.IO.Path]::DirectorySeparatorChar) -or
+        $relative.StartsWith('public' + [System.IO.Path]::DirectorySeparatorChar)
+    )) {
         return $false
     }
     $candidate = [System.IO.Path]::GetFullPath((Join-Path $root $relative))

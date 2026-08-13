@@ -118,11 +118,11 @@ values
   ('00000000-0000-0000-0000-0000000000c2', '10000000-0000-0000-0000-000000000001', 'parent', 'Prind', 'Dy', 'parent.two@mesimi.test')
 on conflict (id) do nothing;
 
-insert into public.students (id, school_id, class_id, first_name, last_name, class_name)
+insert into public.students (id, school_id, class_id, first_name, last_name, class_name, status)
 values
-  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Ana', 'Demo', 'V-A'),
-  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Driton', 'Demo', 'V-A'),
-  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'Lina', 'Demo', 'V-B')
+  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Ana', 'Demo', 'V-A', 'active'),
+  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Driton', 'Demo', 'V-A', 'active'),
+  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'Lina', 'Demo', 'V-B', 'active')
 on conflict (id) do nothing;
 
 insert into public.parent_students (parent_id, student_id)
@@ -147,6 +147,17 @@ values
   ('00000000-0000-0000-0000-0000000000b2', '30000000-0000-0000-0000-000000000001'),
   ('00000000-0000-0000-0000-0000000000b2', '30000000-0000-0000-0000-000000000003')
 on conflict do nothing;
+
+insert into public.teacher_classes (teacher_id, class_id)
+values
+  ('00000000-0000-0000-0000-0000000000b1', '20000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-0000000000b2', '20000000-0000-0000-0000-000000000002')
+on conflict do nothing;
+
+insert into public.school_subjects (school_id, subject_id, active)
+select '10000000-0000-0000-0000-000000000001', id, true
+from public.subjects
+on conflict (school_id, subject_id) do update set active = excluded.active;
 
 insert into public.chapters (id, subject_id, name, target_score)
 select '40000000-0000-0000-0000-000000000001', id, 'Numrat dhe veprimet', 4.0 from public.subjects where name = 'Matematikë'
