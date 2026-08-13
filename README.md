@@ -1,74 +1,67 @@
-# Vlerësimi i Nxënësit / Mësim i Qartë
+# Vlerësimi i Nxënësit
 
-Mobile-first school pilot for Kosovo classrooms. The app keeps the original pastel/mobile prototype experience, but the first production hardening pass moves the project toward a Supabase-backed, role-based architecture.
+Aplikacion mobile-first për bashkëpunimin mes mësimdhënësve dhe prindërve në shkollat e Kosovës. Mundëson ndjekjen e vazhdueshme të nxënësit, me vëmendje të veçantë ndaj fëmijëve me nevoja të veçanta.
 
-## Current Status
+## Funksionet kryesore
 
-As of this handoff, the repository can run locally against the hosted Supabase project configured in `.env`.
+### Për mësimdhënësin
 
-- Supabase CLI is installed locally through `package.json`; a global Supabase install is not required.
-- The hosted project has been linked and the current migrations have been pushed.
-- Teacher and parent demo logins have been verified against Supabase Auth.
-- Teacher post-login reads for profile, assigned subject, assigned students, grades, moods, support profiles, chapters, and teacher notices have been verified through the Supabase REST API.
-- Parent post-login reads for linked child, grades, moods, subject notices, and teacher notices have been verified through the Supabase REST API.
-- The browser app still needs more UI polish and workflow completion, but the core auth/data path is now usable for logic work.
+- Regjistri dhe dosja individuale e nxënësit.
+- Humori dhe njoftimi ditor nga prindi.
+- Notimi sipas lëndës dhe kapitullit.
+- Preferencat e të nxënit dhe profili i mbështetjes.
+- PIA dhe vlerësimi i vazhdueshëm.
+- Asistenti pedagogjik AI për situata të menjëhershme në klasë.
 
-## Current Architecture
+### Për prindin
 
-- `index.html` is now the document shell.
-- `css/styles.css` contains the preserved visual design.
-- `src/app.js` contains the browser application logic.
-- `supabase/migrations/` contains reproducible schema and RLS changes.
-- `supabase/functions/support/` contains the authenticated pedagogical AI endpoint.
-- `start-localhost.ps1` serves the static frontend and generates browser config from `.env`.
-- `package.json` contains local scripts for the frontend server, Supabase CLI, migrations, seed, and checks.
-- Supabase Auth is the identity layer; user role and school come from `profiles`, not from a frontend selector.
+- Raportimi i humorit dhe komenteve ditore.
+- Komente për të gjithë mësimdhënësit ose për një lëndë të caktuar.
+- Rezultatet, mesataret dhe ecuria sipas lëndëve.
+- Njoftimet nga mësimdhënësi.
 
-## What This Pass Implements
+## Teknologjitë
 
-- Splits the previous monolithic HTML into separate HTML, CSS, and JavaScript files.
-- Removes browser localStorage as the write path for chapters, grades, parent mood updates, subject-specific parent notices, and teacher-to-parent notices.
-- Adds a multi-school schema target: schools, profiles, classes, students, relationships, subjects, chapters, grades, moods, notices, support profiles, continuous assessments, and PIA plans.
-- Adds RLS policies for parent, teacher, and school-admin boundaries.
-- Adds synthetic seed data for one school, one admin, two teachers, two parents, and three students.
-- Adds Auth repair and API grant migrations needed for the hosted Supabase Auth and PostgREST paths.
-- Moves the AI production path to a Supabase Edge Function with a small provider abstraction and server-side OpenAI configuration.
-- Removes invented analytics fallback data; empty progress views now say there is not enough data.
-- Stops opening the hard-coded demo PIA PDF as if it were a real student document.
+- HTML, CSS dhe JavaScript
+- Supabase Auth, Database dhe Row Level Security (RLS)
+- Supabase Edge Function për asistentin AI
+- PowerShell për serverin lokal
 
-## Migration Notes
+## Nisja në localhost
 
-The current migration sequence is:
-
-- `202608120001_school_pilot_schema.sql`: creates the pilot schema, helper functions, indexes, RLS policies, subjects, and assessment categories.
-- `202608120002_repair_demo_auth_users.sql`: repairs deterministic demo Auth users after early seed attempts, including email identities and non-null Auth token fields.
-- `202608120003_public_api_grants.sql`: grants authenticated API access to public tables while keeping RLS responsible for row-level authorization.
-
-The second migration exists because direct SQL inserts into Supabase Auth can leave fields in a state that causes `Database error querying schema` during login. Keep it while this dev project uses deterministic seeded demo users.
-
-## Local Frontend Run
-
-Install project tooling once:
+Në PowerShell, brenda dosjes së projektit:
 
 ```powershell
 npm install
-```
-
-Then start the app:
-
-```powershell
 npm run dev
 ```
 
-Open `http://localhost:8080`.
+Pastaj hapni [http://localhost:8080](http://localhost:8080).
 
-The PowerShell server serves `index.html`, `css/`, and `src/`. It still includes the older local `/api/support` fallback, but the browser now calls the Supabase Edge Function for production AI.
+## Konfigurimi
 
-## Supabase Setup
+Krijoni `.env` duke u bazuar në `.env.example`:
 
-The Supabase CLI is installed as a local dev dependency through `package.json`; a global install is not required.
+```env
+SUPABASE_URL=https://projekti.supabase.co
+SUPABASE_PUBLISHABLE_KEY=publishable-key
+PORT=8080
+```
 
-For hosted Supabase work, log in, link the project, preview migrations, then push:
+`OPENAI_API_KEY` dhe `SUPABASE_SERVICE_ROLE_KEY` ruhen vetëm në server ose në Supabase Secrets—kurrë në JavaScript-in e shfletuesit.
+
+## Llogaritë demo
+
+| Roli | Email | Fjalëkalimi |
+| --- | --- | --- |
+| Mësimdhënës | `teacher.math@mesimi.test` | `DemoPilot123!` |
+| Prind | `parent.one@mesimi.test` | `DemoPilot123!` |
+
+Këto llogari përdorin vetëm të dhëna testuese.
+
+## Supabase
+
+Komandat kryesore për migrimet:
 
 ```powershell
 npm run supabase:login
@@ -77,116 +70,34 @@ npm run db:push:dry
 npm run db:push
 ```
 
-To load or re-apply `supabase/seed.sql` into the hosted project, run:
+Skema, migrimet, politikat RLS dhe të dhënat testuese gjenden në `supabase/`.
 
-```powershell
-npm run db:push:seed
-```
+## Siguria
 
-If seed data changes do not appear to run again, create a migration for any required hosted-project repair. `supabase db push --include-seed` may update the remote seed hash without forcing old seed rows to be repaired the way a migration does.
+- Roli dhe shkolla e përdoruesit merren nga `profiles` në Supabase.
+- Prindi mund të lexojë vetëm të dhënat e fëmijës së lidhur me llogarinë e tij.
+- Mësimdhënësi mund të lexojë dhe vlerësojë vetëm nxënësit dhe lëndët e caktuara.
+- Para pilotimit duhen testuar edhe rastet e refuzimit të qasjes ndërmjet përdoruesve.
 
-For a fully local Supabase stack with Docker, run:
+## Struktura e projektit
 
-```powershell
-npm run supabase -- start
-npm run db:reset:local
-npm run functions:serve
-```
+- `index.html` — struktura e ndërfaqes
+- `css/styles.css` — dizajni dhe pamja mobile
+- `src/app.js` — logjika dhe lidhja me Supabase
+- `supabase/` — migrimet, seed dhe funksioni AI
+- `start-localhost.ps1` — serveri lokal
 
-Deploy the Edge Function with:
+## Statusi
 
-```powershell
-npm run functions:deploy
-```
+Projekti është prototip funksional, por jo ende gati për të dhëna reale shkollore. Para pilotimit duhen përfunduar rrjedha e administratorit, ruajtja e PIA-s, testet e plota RLS dhe rishikimi i privatësisë së të dhënave të fëmijëve.
 
-## Environment Variables
+## Changelog
 
-Copy `.env.example` to `.env` for local Supabase function work.
+### 2026-08-13
 
-For the static frontend, `start-localhost.ps1` reads `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` from `.env` and serves them to the browser as `src/config.js`. Browser-safe Supabase publishable keys are not secrets, but keeping them out of `app.js` makes project switching cleaner.
-
-- `SUPABASE_URL`
-- `SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `AI_PROVIDER=openai`
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL`
-- `PORT` for the optional local PowerShell server
-
-Never put `OPENAI_API_KEY` or `SUPABASE_SERVICE_ROLE_KEY` in browser JavaScript.
-
-## Demo Accounts
-
-When using the seed/migrations in this dev project, each account uses password `DemoPilot123!`.
-
-- `admin.demo@mesimi.test`
-- `teacher.math@mesimi.test`
-- `teacher.lang@mesimi.test`
-- `parent.one@mesimi.test`
-- `parent.two@mesimi.test`
-
-These are synthetic demo accounts only. They are acceptable for local/dev testing, but should not be used for real school data.
-
-Verified logins:
-
-- `teacher.math@mesimi.test` / `DemoPilot123!`
-- `parent.one@mesimi.test` / `DemoPilot123!`
-
-## Security Model
-
-The schema uses `profiles.school_id` and relationship tables as the authorization source:
-
-- Parents read linked children through `parent_students`.
-- Teachers read assigned students through `teacher_students`.
-- Teachers can grade only assigned students in assigned subjects, and only when the chapter belongs to that subject.
-- Admins manage records only inside their own school.
-- Subject-specific parent notices are visible to the parent and to teachers assigned to that subject.
-- Teacher-to-parent notices are persisted in `teacher_parent_notices`.
-
-RLS must be tested with real authenticated parent, teacher, and admin users before any pilot deployment.
-
-The current dev smoke test has verified the happy path for the seeded teacher and parent. Cross-user denial cases still need to be manually tested before any pilot.
-
-## AI Endpoint
-
-`supabase/functions/support/index.ts`:
-
-- accepts authenticated teacher requests only,
-- strips obvious email/phone/name patterns before sending text to the provider,
-- handles immediate-risk wording conservatively,
-- uses an `AIProvider` interface with an OpenAI implementation,
-- requests structured JSON output for predictable UI rendering.
-
-The OpenAI API key is read only from Edge Function environment variables, following official OpenAI documentation guidance for environment-stored API keys and structured JSON outputs.
-
-## Intentionally Incomplete
-
-This is not yet production-ready.
-
-- The admin UI is not implemented in the browser yet, though the schema and policies support it.
-- The admin demo Auth user exists, but there is no admin screen yet.
-- Full session restoration and route protection still need a UI pass.
-- Multi-child parent switching is not yet exposed; the parent loader currently opens the first linked child.
-- PIA document upload/download is modeled but not wired to Supabase Storage.
-- Continuous assessment has schema and seed categories, but the teacher UI is not fully database-backed yet.
-- RLS happy paths have been checked for seeded parent and teacher accounts; denial cases still need testing.
-- The browser still contains some prototype-only helper interactions marked by text/alerts rather than complete workflows.
-
-## Test Checklist
-
-Before a school pilot, manually verify:
-
-- Parent, teacher, and admin login. Teacher and first parent demo logins are currently verified; admin UI is not built.
-- Invalid login and logout.
-- Parent A cannot read Student B.
-- Teacher A cannot read or grade unrelated students.
-- Teacher A cannot grade an unassigned subject.
-- Admin A cannot manage School B.
-- Parent mood upsert persists and can be updated for the same day.
-- Subject-specific parent notices are visible only to assigned subject teachers.
-- Teacher notices persist after logout/login.
-- AI requests require an authenticated teacher and no provider secret appears in frontend code.
-
-## Privacy And Legal Review
-
-This system handles child-related educational information. A school or operator still needs formal privacy, retention, access-control, safeguarding, and document-storage policies before real deployment.
+- U lidhën hyrjet demo të mësimdhënësit dhe prindit me Supabase.
+- U nda kodi në HTML, CSS dhe JavaScript dhe u shtuan migrimet/RLS.
+- U shtua asistenti pedagogjik përmes Supabase Edge Function.
+- U ridizajnua faqja hyrëse dhe pamja fillestare `Sot` e mësimdhënësit.
+- U shtuan data/ora, mirëseardhja, lista ditore dhe humori i nxënësve nga Supabase.
+- U përmirësuan navigimi mobile, kontrasti dhe qasja me tastierë.
