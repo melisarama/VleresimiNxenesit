@@ -1,67 +1,67 @@
-# Vlerësimi i Nxënësit
+# Student Assessment
 
-Aplikacion mobile-first për bashkëpunimin mes mësimdhënësve dhe prindërve në shkollat e Kosovës. Mundëson ndjekjen e vazhdueshme të nxënësit, me vëmendje të veçantë ndaj fëmijëve me nevoja të veçanta.
+A mobile-first application for collaboration between teachers and parents in Kosovo schools. It enables continuous student monitoring, with special attention to children with special needs.
 
-## Funksionet kryesore
+## Core Features
 
-### Për mësimdhënësin
+### For Teachers
 
-- Regjistri dhe dosja individuale e nxënësit.
-- Humori dhe njoftimi ditor nga prindi.
-- Notimi sipas lëndës dhe kapitullit.
-- Preferencat e të nxënit dhe profili i mbështetjes.
-- PIA dhe vlerësimi i vazhdueshëm.
-- Asistenti pedagogjik AI për situata të menjëhershme në klasë.
+- Student registry and individual student folder.
+- Daily mood and notification from the parent.
+- Grading by subject and chapter.
+- Learning preferences and support profile.
+- Individual Education Plan (PIA) and continuous assessment.
+- AI pedagogical assistant for immediate classroom situations.
 
-### Për prindin
+### For Parents
 
-- Raportimi i humorit dhe komenteve ditore.
-- Komente për të gjithë mësimdhënësit ose për një lëndë të caktuar.
-- Rezultatet, mesataret dhe ecuria sipas lëndëve.
-- Njoftimet nga mësimdhënësi.
+- Reporting daily mood and comments.
+- Comments for all teachers or for a specific subject.
+- Results, averages, and progress by subject.
+- Notifications from the teacher.
 
-## Teknologjitë
+## Technologies
 
-- HTML, CSS dhe JavaScript
-- Supabase Auth, Database dhe Row Level Security (RLS)
-- Supabase Edge Function për asistentin AI
-- PowerShell për serverin lokal
+- HTML, CSS, and JavaScript
+- Supabase Auth, Database, and Row Level Security (RLS)
+- Supabase Edge Function for the AI assistant
+- PowerShell for the local server
 
-## Nisja në localhost
+## Running on Localhost
 
-Në PowerShell, brenda dosjes së projektit:
+In PowerShell, from the project directory:
 
 ```powershell
 npm install
 npm run dev
 ```
 
-Pastaj hapni [http://localhost:8080](http://localhost:8080).
+Then open [http://localhost:8080](http://localhost:8080).
 
-## Konfigurimi
+## Configuration
 
-Krijoni `.env` duke u bazuar në `.env.example`:
+Create `.env` based on `.env.example`:
 
 ```env
-SUPABASE_URL=https://projekti.supabase.co
+SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_PUBLISHABLE_KEY=publishable-key
 PORT=8080
 ```
 
-`OPENAI_API_KEY` dhe `SUPABASE_SERVICE_ROLE_KEY` ruhen vetëm në server ose në Supabase Secrets—kurrë në JavaScript-in e shfletuesit.
+`OPENAI_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` must be stored only on the server or in Supabase Secrets—never in browser JavaScript.
 
-## Llogaritë demo
+## Demo Accounts
 
-| Roli | Email | Fjalëkalimi |
+| Role | Email | Password |
 | --- | --- | --- |
-| Mësimdhënës | `teacher.math@mesimi.test` | `DemoPilot123!` |
-| Prind | `parent.one@mesimi.test` | `DemoPilot123!` |
+| Teacher | `teacher.math@mesimi.test` | `DemoPilot123!` |
+| Parent | `parent.one@mesimi.test` | `DemoPilot123!` |
 
-Këto llogari përdorin vetëm të dhëna testuese.
+These accounts use test data only.
 
 ## Supabase
 
-Komandat kryesore për migrimet:
+Main migration commands:
 
 ```powershell
 npm run supabase:login
@@ -70,34 +70,34 @@ npm run db:push:dry
 npm run db:push
 ```
 
-Skema, migrimet, politikat RLS dhe të dhënat testuese gjenden në `supabase/`.
+The schema, migrations, RLS policies, and test data are located in `supabase/`.
 
-## Siguria
+## Security
 
-- Roli dhe shkolla e përdoruesit merren nga `profiles` në Supabase.
-- Prindi mund të lexojë vetëm të dhënat e fëmijës së lidhur me llogarinë e tij.
-- Mësimdhënësi mund të lexojë dhe vlerësojë vetëm nxënësit dhe lëndët e caktuara.
-- Para pilotimit duhen testuar edhe rastet e refuzimit të qasjes ndërmjet përdoruesve.
+- The user's role and school are read from `profiles` in Supabase.
+- A parent can read only the data of the child linked to their account.
+- A teacher can read and assess only their assigned students and subjects.
+- Access-denial cases between users must also be tested before the pilot.
 
-## Struktura e projektit
+## Project Structure
 
-- `index.html` — struktura e ndërfaqes
-- `css/styles.css` — dizajni dhe pamja mobile
-- `src/app.js` — logjika dhe lidhja me Supabase
-- `supabase/` — migrimet, seed dhe funksioni AI
-- `start-localhost.ps1` — serveri lokal
+- `index.html` — interface structure
+- `css/styles.css` — design and mobile layout
+- `src/app.js` — application logic and Supabase integration
+- `supabase/` — migrations, seed data, and AI function
+- `start-localhost.ps1` — local server
 
-## Statusi
+## Status
 
-Projekti është prototip funksional, por jo ende gati për të dhëna reale shkollore. Para pilotimit duhen përfunduar rrjedha e administratorit, ruajtja e PIA-s, testet e plota RLS dhe rishikimi i privatësisë së të dhënave të fëmijëve.
+The project is a functional prototype, but it is not yet ready for real school data. Before the pilot, the administrator workflow, PIA storage, complete RLS testing, and a review of children's data privacy must be completed.
 
 ## Changelog
 
 ### 2026-08-13
 
-- U lidhën hyrjet demo të mësimdhënësit dhe prindit me Supabase.
-- U nda kodi në HTML, CSS dhe JavaScript dhe u shtuan migrimet/RLS.
-- U shtua asistenti pedagogjik përmes Supabase Edge Function.
-- U ridizajnua faqja hyrëse dhe pamja fillestare `Sot` e mësimdhënësit.
-- U shtuan data/ora, mirëseardhja, lista ditore dhe humori i nxënësve nga Supabase.
-- U përmirësuan navigimi mobile, kontrasti dhe qasja me tastierë.
+- Connected the teacher and parent demo logins to Supabase.
+- Split the code into HTML, CSS, and JavaScript and added migrations/RLS.
+- Added the pedagogical assistant through a Supabase Edge Function.
+- Redesigned the landing page and the teacher's initial `Sot` view.
+- Added the date/time, welcome message, daily list, and student moods from Supabase.
+- Improved mobile navigation, contrast, and keyboard accessibility.
