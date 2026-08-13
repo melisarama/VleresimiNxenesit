@@ -7,10 +7,12 @@ import { fetchParentDashboardData, fetchParentStudentMapping } from './services/
 import { initializeAdminWorkflow } from './admin/admin.js';
 import { initializeAccountSetup } from './auth/accountSetup.js';
 import { fetchTeacherDashboardData } from './services/teacherService.js';
+import { initializeTeacherPrototype } from './teacher/teacherPrototype.js';
 
     let currentUser=null;
     let currentTeacherId=null;
     let activeSubjectId=null;
+    let activeAcademicPeriodId=null;
     const teacherNoticeRows=[];
     const parentTeacherNotices=[];
     function userMessage(error,fallback='Nuk mund të lidhemi me të dhënat. Provoni përsëri.'){ console.warn(fallback,error); return fallback; }
@@ -18,6 +20,7 @@ import { fetchTeacherDashboardData } from './services/teacherService.js';
     verifySupabaseConnection();
     initializeAccountSetup();
     initializeAdminWorkflow();
+    const teacherPrototype=initializeTeacherPrototype({onLogout:async()=>{ await supabaseClient.auth.signOut(); document.getElementById('teacherApp').classList.add('hidden'); document.getElementById('roleGate').classList.remove('hidden'); }});
     document.getElementById('teacherRole').onclick=()=>{ document.getElementById('roleGate').classList.add('hidden'); document.getElementById('teacherLogin').classList.remove('hidden'); };
     document.getElementById('parentRole').onclick=()=>{ document.getElementById('roleGate').classList.add('hidden'); document.getElementById('parentPage').classList.remove('hidden'); };
     document.getElementById('backToRoles').onclick=()=>{ document.getElementById('parentPage').classList.add('hidden'); document.getElementById('roleGate').classList.remove('hidden'); };
@@ -55,24 +58,28 @@ import { fetchTeacherDashboardData } from './services/teacherService.js';
     async function loadTeacherData(user){
       currentUser=user;
       currentTeacherId=user.id;
-      const {profileResult,subjectResult,studentResult,supportResult,chapterResult,gradeResult,moodResult,teacherNoticeResult}=await fetchTeacherDashboardData(user.id);
+      const {profileResult,subjectResult,studentResult,supportResult,chapterResult,gradeResult,moodResult,teacherNoticeResult,periodResult}=await fetchTeacherDashboardData(user.id);
       if(profileResult.error) throw profileResult.error;
       if(studentResult.error) throw studentResult.error;
       if(subjectResult.error) throw subjectResult.error;
+      if(periodResult.error) throw periodResult.error;
       const firstSubject=subjectResult.data&&subjectResult.data[0];
       const subjectName=firstSubject&&firstSubject.subjects?firstSubject.subjects.name:'Matematikë';
       activeSubjectId=firstSubject&&firstSubject.subjects?firstSubject.subjects.id:firstSubject?firstSubject.subject_id:null;
       const supportByStudent=Object.fromEntries((supportResult.data||[]).map(item=>[item.student_id,item]));
-      storedStudents.splice(0,storedStudents.length,...(studentResult.data||[]).map(item=>{const support=supportByStudent[item.id]||{}; return {id:item.id,class_id:item.class_id,className:item.class_name||'Pa klasë',name:item.first_name+' '+item.last_name,support:support.support_summary||'Pa mbështetje të shënuar',detail:support.support_summary||'',icon:'📋'};}));
+      storedStudents.splice(0,storedStudents.length,...(studentResult.data||[]).map(item=>{const support=supportByStudent[item.id]||{}; return {id:item.id,class_id:item.class_id,className:item.class_name||'Pa klasë',schoolYear:item.classes?.school_year||'',name:item.first_name+' '+item.last_name,support:support.support_summary||'Pa mbështetje të shënuar',detail:support.support_summary||'',icon:'📋'};}));
       Object.keys(dailyMoods).forEach(key=>delete dailyMoods[key]);
       Object.keys(moodHistory).forEach(key=>delete moodHistory[key]);
       (moodResult.data||[]).forEach(item=>{const student=storedStudents.find(row=>row.id===item.student_id); if(student){ if(!dailyMoods[student.name]) dailyMoods[student.name]={mood:item.mood,comment:item.parent_comment||''}; if(!moodHistory[student.name]) moodHistory[student.name]=[]; moodHistory[student.name].push({date:item.reported_on,mood:item.mood,comment:item.parent_comment||''}); }});
       const chapterRows=(chapterResult.data||[]).filter(item=>item.subject_id===activeSubjectId||(item.subjects&&item.subjects.name===subjectName));
       chaptersBySubject[subjectName]=chapterRows.map(chapter=>{const grades=(gradeResult.data||[]).filter(item=>item.chapter_id===chapter.id); const score=grades.length?grades.reduce((sum,item)=>sum+Number(item.score),0)/grades.length:0; return {id:chapter.id,subject_id:chapter.subject_id,name:chapter.name,score};});
       teacherNoticeRows.splice(0,teacherNoticeRows.length,...(teacherNoticeResult.data||[]));
+      const academicPeriods=periodResult.data||[];
+      activeAcademicPeriodId=academicPeriods.find(item=>item.status==='active')?.id||null;
       const teacherFullName=profileResult.data.first_name+' '+profileResult.data.last_name;
       document.getElementById('teacherName').textContent=teacherFullName;
       document.getElementById('teacherWelcomeName').textContent=teacherFullName;
+      teacherPrototype.setData({teacherName:teacherFullName,teacherId:user.id,schoolId:profileResult.data.school_id,subjects:(subjectResult.data||[]).map(item=>item.subjects||{id:item.subject_id,name:'Lënda'}),academicPeriods,students:storedStudents,moods:dailyMoods});
       setTeacherSubject(subjectName);
       renderStudents(); renderEvaluationFolders(); renderDailyMoods();
     }
@@ -328,11 +335,11 @@ import { fetchTeacherDashboardData } from './services/teacherService.js';
       const student=storedStudents[activeStudent];
       const status=document.getElementById('scoreDetail');
       const button=document.getElementById('saveGrade');
-      if(!student||!student.id||!chapter||!chapter.id||!activeSubjectId||!currentTeacherId){ status.textContent='Nota nuk mund të ruhet pa nxënës, kapitull dhe lëndë të autorizuar.'; return; }
+      if(!student||!student.id||!chapter||!chapter.id||!activeSubjectId||!currentTeacherId||!activeAcademicPeriodId){ status.textContent='Nota nuk mund të ruhet pa nxënës, kapitull, lëndë dhe periudhë aktive.'; return; }
       if(!Number.isFinite(grade)||grade<1||grade>5){ status.textContent='Nota duhet të jetë mes 1 dhe 5.'; return; }
       button.disabled=true;
       status.textContent='Duke ruajtur notën…';
-      const result=await supabaseClient.from('grades').insert({student_id:student.id,subject_id:activeSubjectId,chapter_id:chapter.id,teacher_id:currentTeacherId,score:grade});
+      const result=await supabaseClient.from('grades').insert({student_id:student.id,subject_id:activeSubjectId,chapter_id:chapter.id,teacher_id:currentTeacherId,academic_period_id:activeAcademicPeriodId,score:grade});
       button.disabled=false;
       if(result.error){ status.textContent=userMessage(result.error,'Nota nuk u ruajt. Kontrolloni autorizimin dhe provoni përsëri.'); return; }
       const previousScore=Number(chapter.score)||0;

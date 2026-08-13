@@ -109,6 +109,24 @@ values
   ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'V-B', '2026/2027')
 on conflict (school_id, name, school_year) do nothing;
 
+insert into public.academic_periods (id, school_id, name, school_year, starts_on, ends_on, status)
+values (
+  '50000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'Gjysmëvjetori I',
+  '2026/2027',
+  '2026-09-01',
+  '2027-01-31',
+  'active'
+)
+on conflict (id) do update
+set name = excluded.name,
+    school_year = excluded.school_year,
+    starts_on = excluded.starts_on,
+    ends_on = excluded.ends_on,
+    status = excluded.status,
+    updated_at = now();
+
 insert into public.profiles (id, school_id, role, first_name, last_name, email)
 values
   ('00000000-0000-0000-0000-0000000000a1', '10000000-0000-0000-0000-000000000001', 'admin', 'Administratore', 'Demo', 'admin.demo@mesimi.test'),
@@ -167,8 +185,8 @@ insert into public.chapters (id, subject_id, name, target_score)
 select '40000000-0000-0000-0000-000000000002', id, 'Leximi kuptimor', 4.0 from public.subjects where name = 'Gjuhë shqipe'
 on conflict do nothing;
 
-insert into public.grades (student_id, subject_id, chapter_id, teacher_id, score)
-select '30000000-0000-0000-0000-000000000001', s.id, '40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000b1', 4.2
+insert into public.grades (student_id, subject_id, chapter_id, teacher_id, academic_period_id, score)
+select '30000000-0000-0000-0000-000000000001', s.id, '40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000b1', '50000000-0000-0000-0000-000000000001', 4.2
 from public.subjects s where s.name = 'Matematikë';
 
 insert into public.daily_moods (student_id, parent_id, mood, general_comment, parent_comment, reported_on)

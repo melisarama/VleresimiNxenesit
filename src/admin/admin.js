@@ -1,11 +1,13 @@
 import { supabaseClient } from '../lib/supabaseClient.js';
 import { escapeHtml } from '../utils/html.js';
 import {
+  addSchoolSubject,
   addAdminRelation,
   fetchAdminDashboardData,
   inviteSchoolMember,
   removeAdminRelation,
   saveAdminClass,
+  saveAcademicPeriod,
   saveAdminStudent,
   setAdminClassActive,
   setAdminProfileActive,
@@ -42,6 +44,9 @@ function friendlyError(error, fallback = 'Veprimi nuk u krye. Provoni përsëri.
   if (/duplicate|unique/i.test(message)) return 'Ky regjistrim ekziston tashmë.';
   if (/ACCOUNT_EXISTS/.test(message)) return 'Një llogari me këtë email ekziston tashmë.';
   if (/Failed to send|FunctionsHttpError|Failed to fetch/i.test(message)) return 'Ftesa nuk u dërgua. Kontrolloni nëse funksioni admin-users është publikuar.';
+  if (/CLOSED_PERIOD_IMMUTABLE/.test(message)) return 'Një periudhë e mbyllur nuk mund të ndryshohet.';
+  if (/INVALID_DATES/.test(message)) return 'Data e përfundimit duhet të jetë pas datës së fillimit.';
+  if (/INVALID_SUBJECT_NAME/.test(message)) return 'Shkruani një emër të vlefshëm për lëndën.';
   return fallback;
 }
 
@@ -65,6 +70,7 @@ function renderAdmin() {
   renderPeople('teacher', teachers);
   renderPeople('parent', parents);
   renderClasses();
+  renderPeriods();
   renderSubjects();
   renderAssignments();
   renderOverview();
@@ -88,6 +94,12 @@ function renderOverview() {
     <div><span>Adresa</span><strong>${escapeHtml(adminData.school.address || 'Pa adresë')}</strong></div>
     <div><span>Viti shkollor</span><strong>${escapeHtml(adminData.classes.find(item => item.active)?.school_year || 'Pa të dhëna')}</strong></div>
   `;
+  const currentPeriod = adminData.academicPeriods.find(period => period.status === 'active');
+  byId('adminCurrentPeriod').innerHTML = currentPeriod ? `
+    <strong>${escapeHtml(currentPeriod.name)}</strong>
+    <span>${escapeHtml(currentPeriod.school_year)}</span>
+    <small>${escapeHtml(formatAdminDate(currentPeriod.starts_on))} – ${escapeHtml(formatAdminDate(currentPeriod.ends_on))}</small>
+  ` : '<p class="admin-empty">Nuk ka periudhë aktive.</p>';
 }
 
 function renderStudents() {
@@ -148,10 +160,29 @@ function renderSubjects() {
   const enabledMap = Object.fromEntries(adminData.schoolSubjects.map(item => [item.subject_id, item.active]));
   byId('adminSubjectRows').innerHTML = adminData.subjects.map(subject => `
     <label class="admin-subject-toggle">
-      <span><strong>${escapeHtml(subject.name)}</strong><small>${enabledMap[subject.id] !== false ? 'E disponueshme në shkollë' : 'E çaktivizuar'}</small></span>
-      <input type="checkbox" data-action="toggle-subject" data-id="${subject.id}"${checked(enabledMap[subject.id] !== false)}>
+      <span><strong>${escapeHtml(subject.name)}</strong><small>${enabledMap[subject.id] === true ? 'E disponueshme në shkollë' : 'E çaktivizuar'}</small></span>
+      <input type="checkbox" data-action="toggle-subject" data-id="${subject.id}"${checked(enabledMap[subject.id] === true)}>
     </label>
   `).join('');
+}
+
+function formatAdminDate(value) {
+  return new Intl.DateTimeFormat('sq-AL', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`));
+}
+
+function renderPeriods() {
+  const statusLabels = { planned: 'E planifikuar', active: 'Aktive', closed: 'E mbyllur' };
+  byId('adminPeriodRows').innerHTML = adminData.academicPeriods.map(period => `
+    <article class="admin-period-row ${period.status}">
+      <div><span>${escapeHtml(period.school_year)}</span><strong>${escapeHtml(period.name)}</strong><small>${escapeHtml(formatAdminDate(period.starts_on))} – ${escapeHtml(formatAdminDate(period.ends_on))}</small></div>
+      <span class="admin-state ${period.status === 'active' ? 'active' : 'inactive'}">${statusLabels[period.status]}</span>
+      <div class="admin-row-actions">
+        ${period.status !== 'closed' ? `<button type="button" data-action="edit-period" data-id="${period.id}">Ndrysho</button>` : ''}
+        ${period.status === 'planned' ? `<button type="button" data-action="activate-period" data-id="${period.id}">Aktivizo</button>` : ''}
+        ${period.status === 'active' ? `<button type="button" data-action="close-period" data-id="${period.id}">Mbyll</button>` : ''}
+      </div>
+    </article>
+  `).join('') || '<p class="admin-empty">Nuk ka ende periudha akademike.</p>';
 }
 
 function relationNames(type, relation) {
@@ -203,7 +234,7 @@ function showAdminView(view) {
   activeView = view;
   document.querySelectorAll('[data-admin-view]').forEach(section => section.classList.toggle('hidden', section.dataset.adminView !== view));
   document.querySelectorAll('[data-admin-nav]').forEach(button => button.classList.toggle('active', button.dataset.adminNav === view));
-  const labels = { overview: 'Pasqyra', students: 'Nxënësit', teachers: 'Mësimdhënësit', parents: 'Prindërit', classes: 'Klasat', subjects: 'Lëndët e shkollës', assignments: 'Caktimet' };
+  const labels = { overview: 'Pasqyra', students: 'Nxënësit', teachers: 'Mësimdhënësit', parents: 'Prindërit', classes: 'Klasat', periods: 'Periudhat akademike', subjects: 'Lëndët e shkollës', assignments: 'Caktimet' };
   byId('adminViewTitle').textContent = labels[view] || 'Administrimi';
 }
 
@@ -254,10 +285,22 @@ function openStudentDialog(student = null) {
 }
 
 function openClassDialog(schoolClass = null) {
-  const defaultYear = schoolClass?.school_year || `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`;
+  const activePeriod = adminData.academicPeriods.find(period => period.status === 'active');
+  const schoolYears = [...new Set(adminData.academicPeriods.filter(period => period.status !== 'closed').map(period => period.school_year))];
+  if (schoolClass?.school_year && !schoolYears.includes(schoolClass.school_year)) schoolYears.push(schoolClass.school_year);
+  if (!schoolYears.length) {
+    showAdminView('periods');
+    openPeriodDialog();
+    return;
+  }
+  const defaultYear = schoolClass?.school_year || activePeriod?.school_year || schoolYears[0] || '';
+  const yearOptions = schoolYears.map(year => {
+    const suffix = year === activePeriod?.school_year ? ' · Aktual' : '';
+    return `<option value="${escapeHtml(year)}"${selected(year, defaultYear)}>${escapeHtml(year + suffix)}</option>`;
+  }).join('');
   openAdminDialog(schoolClass ? 'Ndrysho klasën' : 'Krijo klasë', `
     <label>Emri i klasës<input name="name" required maxlength="40" value="${escapeHtml(schoolClass?.name || '')}" placeholder="p.sh. V-A"></label>
-    <label>Viti shkollor<input name="schoolYear" required maxlength="20" value="${escapeHtml(defaultYear)}" placeholder="2026/2027"></label>
+    <label>Viti shkollor<select name="schoolYear" required>${yearOptions}</select></label>
   `, schoolClass ? 'Ruaj ndryshimet' : 'Krijo klasën', form => saveAdminClass({
     id: schoolClass?.id,
     schoolId: adminData.profile.school_id,
@@ -286,6 +329,41 @@ function openSchoolDialog() {
   `, 'Ruaj shkollën', form => updateAdminSchool(adminData.school.id, { name: form.get('name').trim(), address: form.get('address').trim() || null }));
 }
 
+function openSubjectDialog() {
+  openAdminDialog('Shto lëndë', `
+    <label>Emri i lëndës<input name="name" required maxlength="100" placeholder="p.sh. Gjuhë gjermane"></label>
+    <p class="admin-form-note">Nëse lënda ekziston në katalog, ajo vetëm do të aktivizohet për këtë shkollë.</p>
+  `, 'Shto lëndën', form => addSchoolSubject(adminData.profile.school_id, form.get('name')));
+}
+
+function dateInputValue(value) {
+  return value ? String(value).slice(0, 10) : '';
+}
+
+function openPeriodDialog(period = null) {
+  const activeClass = adminData.classes.find(item => item.active);
+  const currentYear = new Date().getFullYear();
+  const schoolYear = period?.school_year || activeClass?.school_year || `${currentYear}/${currentYear + 1}`;
+  const startsOn = dateInputValue(period?.starts_on) || `${currentYear}-09-01`;
+  const endsOn = dateInputValue(period?.ends_on) || `${currentYear + 1}-01-31`;
+  openAdminDialog(period ? 'Ndrysho periudhën' : 'Shto periudhë', `
+    <label>Emri<input name="name" required maxlength="80" value="${escapeHtml(period?.name || '')}" placeholder="p.sh. Gjysmëvjetori II"></label>
+    <label>Viti shkollor<input name="schoolYear" required maxlength="20" value="${escapeHtml(schoolYear)}" placeholder="2026/2027"></label>
+    <label>Fillon më<input name="startsOn" type="date" required value="${startsOn}"></label>
+    <label>Përfundon më<input name="endsOn" type="date" required value="${endsOn}"></label>
+    <label>Statusi<select name="status"><option value="planned"${selected(period?.status || 'planned', 'planned')}>E planifikuar</option><option value="active"${selected(period?.status, 'active')}>Aktive</option>${period?.status === 'closed' ? '<option value="closed" selected>E mbyllur</option>' : ''}</select></label>
+    <p class="admin-form-note">Aktivizimi i kësaj periudhe mbyll automatikisht periudhën aktuale.</p>
+  `, period ? 'Ruaj periudhën' : 'Shto periudhën', form => saveAcademicPeriod({
+    id: period?.id,
+    schoolId: adminData.profile.school_id,
+    name: form.get('name'),
+    schoolYear: form.get('schoolYear'),
+    startsOn: form.get('startsOn'),
+    endsOn: form.get('endsOn'),
+    status: form.get('status')
+  }));
+}
+
 async function handleAdminAction(action, id, target) {
   if (action === 'add-student') return openStudentDialog();
   if (action === 'edit-student') return openStudentDialog(adminData.students.find(item => item.id === id));
@@ -294,6 +372,9 @@ async function handleAdminAction(action, id, target) {
   if (action === 'invite-teacher') return openInviteDialog('teacher');
   if (action === 'invite-parent') return openInviteDialog('parent');
   if (action === 'edit-school') return openSchoolDialog();
+  if (action === 'add-subject') return openSubjectDialog();
+  if (action === 'add-period') return openPeriodDialog();
+  if (action === 'edit-period') return openPeriodDialog(adminData.academicPeriods.find(item => item.id === id));
   try {
     if (action === 'toggle-student') {
       const student = adminData.students.find(item => item.id === id);
@@ -305,7 +386,18 @@ async function handleAdminAction(action, id, target) {
       const profile = adminData.profiles.find(item => item.id === id);
       await setAdminProfileActive(id, !profile.active);
     } else if (action === 'toggle-subject') {
+      const assignments = adminData.teacherSubjects.filter(item => item.subject_id === id).length;
+      if (!target.checked && assignments && !window.confirm(`Kjo lëndë ka ${assignments} caktime me mësimdhënës. Çaktivizimi do ta fshehë për punën e re, por historiku ruhet. Vazhdoni?`)) {
+        target.checked = true;
+        return;
+      }
       await setSchoolSubject(adminData.profile.school_id, id, target.checked);
+    } else if (action === 'activate-period' || action === 'close-period') {
+      const period = adminData.academicPeriods.find(item => item.id === id);
+      const status = action === 'activate-period' ? 'active' : 'closed';
+      if (status === 'active' && !window.confirm('Aktivizimi i kësaj periudhe do të mbyllë periudhën aktuale. Vazhdoni?')) return;
+      if (status === 'closed' && !window.confirm('Pas mbylljes, kjo periudhë dhe vlerësimet e saj nuk mund të ndryshohen. Vazhdoni?')) return;
+      await saveAcademicPeriod({ id: period.id, schoolId: period.school_id, name: period.name, schoolYear: period.school_year, startsOn: period.starts_on, endsOn: period.ends_on, status });
     } else if (action === 'remove-relation') {
       const config = relationConfig[target.dataset.type];
       await removeAdminRelation(config.table, { [config.left]: target.dataset.left, [config.right]: target.dataset.right });

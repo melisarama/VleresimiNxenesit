@@ -159,6 +159,7 @@
         <button type="button" data-admin-nav="teachers"><span aria-hidden="true">▣</span>Mësimdhënësit</button>
         <button type="button" data-admin-nav="parents"><span aria-hidden="true">◇</span>Prindërit</button>
         <button type="button" data-admin-nav="classes"><span aria-hidden="true">▦</span>Klasat</button>
+        <button type="button" data-admin-nav="periods"><span aria-hidden="true">◷</span>Periudhat</button>
         <button type="button" data-admin-nav="subjects"><span aria-hidden="true">≡</span>Lëndët</button>
         <button type="button" data-admin-nav="assignments"><span aria-hidden="true">⇄</span>Caktimet</button>
       </nav>
@@ -177,6 +178,7 @@
         <div class="admin-overview-grid">
           <section><div class="admin-section-head"><div><p>Kontrolli i strukturës</p><h2>Kërkon vëmendje</h2></div></div><div class="admin-attention-list" id="adminAttentionList"></div></section>
           <section><div class="admin-section-head"><div><p>Profili institucional</p><h2>Shkolla</h2></div><button type="button" data-action="edit-school">Ndrysho</button></div><div class="admin-school-summary" id="adminSchoolSummary"></div></section>
+          <section><div class="admin-section-head"><div><p>Viti mësimor</p><h2>Periudha aktuale</h2></div><button type="button" data-open-view="periods">Menaxho</button></div><div class="admin-current-period" id="adminCurrentPeriod"></div></section>
         </div>
       </section>
       <section class="admin-view hidden" data-admin-view="students">
@@ -199,8 +201,12 @@
         <div class="admin-table"><div class="admin-table-head"><span>Klasa</span><span>Nxënësit</span><span>Statusi</span><span>Veprimet</span></div><div id="adminClassRows"></div></div>
       </section>
       <section class="admin-view hidden" data-admin-view="subjects">
-        <div class="admin-section-head"><div><p>Programi i shkollës</p><h2>Lëndët aktive</h2></div></div>
+        <div class="admin-section-head"><div><p>Programi i shkollës</p><h2>Lëndët aktive</h2></div><button class="btn primary" type="button" data-action="add-subject">Shto lëndë</button></div>
         <div class="admin-subject-grid" id="adminSubjectRows"></div>
+      </section>
+      <section class="admin-view hidden" data-admin-view="periods">
+        <div class="admin-section-head"><div><p>Kalendari mësimor</p><h2>Periudhat akademike</h2></div><button class="btn primary" type="button" data-action="add-period">Shto periudhë</button></div>
+        <div class="admin-period-list" id="adminPeriodRows"></div>
       </section>
       <section class="admin-view hidden" data-admin-view="assignments">
         <div class="admin-section-head"><div><p>Autorizimet mësimore</p><h2>Caktimet</h2></div></div>
@@ -216,7 +222,105 @@
       </form>
     </dialog>
   </div>
-  <div class="app hidden" id="teacherApp"><div class="phone no-selection registry-only" id="appPhone">
+  <div class="app hidden" id="teacherApp">
+  <section class="teacher-prototype" id="teacherPrototype" aria-label="Paneli i mësimdhënësit">
+    <aside class="teacher-prototype-sidebar">
+      <div class="teacher-prototype-brand"><span aria-hidden="true">MQ</span><div><strong>Mësim i Qartë</strong><small>Paneli i mësimdhënësit</small></div></div>
+      <nav class="teacher-prototype-nav" aria-label="Navigimi kryesor">
+        <button class="active" type="button" data-teacher-view="students"><span class="tp-icon" aria-hidden="true">◎</span><span>Nxënësit</span></button>
+        <button type="button" data-teacher-view="materials"><span class="tp-icon" aria-hidden="true">▤</span><span>Materialet</span></button>
+        <button type="button" data-teacher-view="notifications"><span class="tp-icon" aria-hidden="true">◇</span><span>Njoftimet</span><span class="teacher-nav-count">3</span></button>
+        <button type="button" data-teacher-view="support"><span class="tp-icon" aria-hidden="true">✦</span><span>Mbështetja AI</span></button>
+        <button type="button" data-teacher-view="settings"><span class="tp-icon" aria-hidden="true">⚙</span><span>Cilësimet</span></button>
+      </nav>
+      <div class="teacher-account-summary"><span class="teacher-account-avatar">MD</span><div><strong data-teacher-name>Mësimdhënës</strong><small>Matematikë</small></div></div>
+      <button class="teacher-logout-button" type="button" data-teacher-logout><span aria-hidden="true">↪</span><span>Dil nga llogaria</span></button>
+    </aside>
+
+    <div class="teacher-prototype-content">
+      <header class="teacher-prototype-header">
+        <div><p id="teacherViewKicker">Regjistri i klasave</p><h1 id="teacherViewTitle">Nxënësit</h1></div>
+        <div class="teacher-header-actions"><button type="button" data-open-teacher-notifications aria-label="Hap njoftimet" title="Njoftimet">◇<span>3</span></button><span class="teacher-header-avatar">MD</span><button class="teacher-mobile-logout" type="button" data-teacher-logout aria-label="Dil nga llogaria" title="Dil nga llogaria">↪</button></div>
+      </header>
+
+      <main class="teacher-prototype-main">
+        <section class="teacher-prototype-view active" data-teacher-panel="students">
+          <div class="teacher-view-tools"><label class="teacher-search"><span aria-hidden="true">⌕</span><input id="teacherStudentSearch" type="search" placeholder="Kërko nxënësin" aria-label="Kërko nxënësin"></label><span class="teacher-student-total" id="teacherPrototypeStudentTotal">0 nxënës</span></div>
+          <div class="teacher-class-groups" id="teacherClassGroups"></div>
+        </section>
+
+        <section class="teacher-prototype-view" data-teacher-panel="student-folder">
+          <button class="teacher-back-button" id="teacherFolderBack" type="button">← <span>Kthehu te nxënësit</span></button>
+          <div class="teacher-folder-profile"><span id="teacherFolderAvatar">AD</span><div><p>Dosja e nxënësit</p><h2 id="teacherFolderName">Ana Demo</h2><small id="teacherFolderMeta">Klasa V-A</small></div></div>
+          <div class="teacher-folder-actions">
+            <button type="button" data-folder-prototype="mood"><span class="folder-action-symbol">☼</span><span><strong>Humori ditor dhe historiku</strong><small>Njoftimet e prindit dhe ndryshimet ditore</small></span><span>›</span></button>
+            <button type="button" data-folder-prototype="preferences"><span class="folder-action-symbol">◌</span><span><strong>Preferencat dhe komunikimi</strong><small>Udhëzime praktike për mësim dhe komunikim</small></span><span>›</span></button>
+            <button type="button" data-folder-prototype="assessments"><span class="folder-action-symbol">✓</span><span><strong>Vlerësimet</strong><small>Njohuritë sipas kapitujve dhe nota përfundimtare</small></span><span>›</span></button>
+          </div>
+        </section>
+
+        <section class="teacher-prototype-view" data-teacher-panel="folder-detail">
+          <button class="teacher-back-button" id="teacherDetailBack" type="button">← <span>Dosja e nxënësit</span></button>
+          <div id="teacherFolderDetail"></div>
+        </section>
+
+        <section class="teacher-prototype-view" data-teacher-panel="materials">
+          <div class="teacher-section-heading"><div><h2>Materialet mësimore</h2><p>Publikoni për klasën, lëndën ose nxënës të zgjedhur.</p></div><button class="teacher-primary-button" id="teacherNewMaterial" type="button">＋ Publiko material</button></div>
+          <form class="teacher-composer hidden" id="teacherMaterialComposer">
+            <div class="teacher-form-grid"><label>Lënda<select id="teacherMaterialSubject" required></select></label><label>Marrësit<select id="teacherMaterialAudience"><option value="class">E gjithë klasa</option><option value="subject">Të gjithë nxënësit e lëndës</option><option value="selected">Nxënës të zgjedhur</option></select></label></div>
+            <label id="teacherMaterialClassField">Klasa<select id="teacherMaterialClass" required></select></label>
+            <div class="teacher-selected-students hidden" id="teacherMaterialStudents"></div>
+            <label>Titulli<input id="teacherMaterialTitle" type="text" maxlength="160" required placeholder="P.sh. Thyesat - faqet 42-44"></label>
+            <label>Përshkrim i shkurtër<textarea id="teacherMaterialDescription" rows="3" maxlength="1200" placeholder="Çfarë u mësua dhe çfarë duhet të ushtrohet?"></textarea></label>
+            <div class="teacher-attachment-row"><label class="teacher-attachment-button">▧ Shto foto ose PDF<input id="teacherMaterialFiles" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden></label><small>Fotografitë kompresohen automatikisht · maksimumi 10 MB për skedar</small></div>
+            <div class="teacher-file-selection" id="teacherMaterialFileSelection"></div>
+            <div class="teacher-form-grid"><label>Ruajtja e materialit<select id="teacherMaterialRetention"><option value="120">Fshi automatikisht pas 120 ditësh</option><option value="90">Fshi automatikisht pas 90 ditësh</option></select></label><label class="teacher-check-row teacher-notify-check"><input id="teacherMaterialNotify" type="checkbox" checked> Njofto prindërit brenda platformës</label></div>
+            <p class="teacher-material-status" id="teacherMaterialStatus" aria-live="polite"></p>
+            <div class="teacher-form-actions"><button type="button" id="teacherCancelMaterial">Anulo</button><button class="teacher-primary-button" type="submit">Publiko</button></div>
+          </form>
+          <div class="teacher-material-warnings" id="teacherMaterialWarnings"></div>
+          <div class="teacher-material-list" id="teacherMaterialList"></div>
+        </section>
+
+        <section class="teacher-prototype-view" data-teacher-panel="notifications">
+          <div class="teacher-section-heading"><div><h2>Njoftimet</h2><p>Mesazhe dhe përditësime nga prindërit.</p></div><button class="teacher-filter-button" type="button" id="teacherUnreadFilter">Vetëm të palexuarat</button></div>
+          <div class="teacher-email-callout"><span>✉</span><div><strong>Merrni njoftime edhe në email</strong><p>Lidhni email-in që të njoftoheni kur një prind dërgon mesazh.</p></div><button type="button" data-teacher-view="settings">Konfiguro</button></div>
+          <div class="teacher-inbox-layout">
+            <div class="teacher-message-list" id="teacherMessageList"></div>
+            <article class="teacher-message-detail" id="teacherMessageDetail"><div class="teacher-empty-message"><span>◇</span><strong>Zgjidhni një mesazh</strong><p>Mesazhi dhe përgjigjet do të shfaqen këtu.</p></div></article>
+          </div>
+        </section>
+
+        <section class="teacher-prototype-view" data-teacher-panel="support">
+          <div class="teacher-support-placeholder"><span>✦</span><p>Mbështetja AI</p><h2>Asistenti pedagogjik po vjen së shpejti</h2><p>Kjo hapësirë do të ndihmojë me strategji praktike në klasë, bazuar në nevojat dhe preferencat e nxënësit.</p><button type="button" disabled>Joaktive në këtë prototip</button></div>
+        </section>
+
+        <section class="teacher-prototype-view" data-teacher-panel="settings">
+          <div class="teacher-settings-layout">
+            <section><h2>Njoftimet me email</h2><p>Zgjidhni si dëshironi të njoftoheni jashtë platformës.</p><label class="teacher-setting-field">Email-i për njoftime<input id="teacherNotificationEmail" type="email" placeholder="emri@shkolla.edu"></label><label class="teacher-toggle-row"><span><strong>Mesazhet e reja nga prindërit</strong><small>Dërgo email sa herë që një prind ju shkruan.</small></span><input type="checkbox" role="switch" checked></label><label class="teacher-toggle-row"><span><strong>Përmbledhje ditore</strong><small>Një email në fund të ditës me aktivitetin e ri.</small></span><input type="checkbox" role="switch"></label><button class="teacher-primary-button" id="teacherSaveSettings" type="button">Ruaj cilësimet</button><p class="teacher-save-status" id="teacherSettingsStatus"></p></section>
+            <section><h2>Rreth platformës</h2><p>Mësim i Qartë ndihmon bashkëpunimin mes shkollës dhe familjes për një pasqyrë më të kuptueshme të progresit të nxënësit.</p><dl><div><dt>Versioni</dt><dd>Prototip 0.1</dd></div><div><dt>Ekipi</dt><dd>Hackathon Project</dd></div></dl></section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <nav class="teacher-mobile-nav" aria-label="Navigimi në celular">
+      <button class="active" type="button" data-teacher-view="students"><span>◎</span><small>Nxënësit</small></button>
+      <button type="button" data-teacher-view="materials"><span>▤</span><small>Materialet</small></button>
+      <button type="button" data-teacher-view="notifications"><span class="mobile-badge-icon">◇<b>3</b></span><small>Njoftimet</small></button>
+      <button type="button" data-teacher-view="support"><span>✦</span><small>AI</small></button>
+      <button type="button" data-teacher-view="settings"><span>⚙</span><small>Cilësimet</small></button>
+    </nav>
+    <dialog class="teacher-logout-dialog" id="teacherLogoutDialog" aria-labelledby="teacherLogoutTitle">
+      <form method="dialog">
+        <span class="teacher-logout-symbol" aria-hidden="true">↪</span>
+        <h2 id="teacherLogoutTitle">Dil nga llogaria?</h2>
+        <p>Jeni të sigurt që dëshironi të përfundoni sesionin tuaj?</p>
+        <div><button type="submit" value="cancel">Jo, qëndro</button><button class="teacher-confirm-logout" type="submit" value="confirm">Po, dil</button></div>
+      </form>
+    </dialog>
+  </section>
+  <div class="phone no-selection registry-only teacher-legacy-workspace" id="appPhone">
     <header><div class="today-dashboard-header"><h1>Paneli i Nxënësit</h1><time id="teacherTodayDate" datetime=""></time><div class="teacher-welcome"><span>Mirëseerdhe</span><strong id="teacherWelcomeName">Mësimdhënës</strong></div></div><div class="teacher-page-nav"><button class="page-arrow" id="teacherBack" type="button" disabled aria-label="Kthehu një hap mbrapa">←</button><strong>Paneli i mësimdhënësit</strong><button class="page-arrow" id="teacherForward" type="button" disabled aria-label="Vazhdo një hap përpara">→</button></div><div class="top"><div class="brand" id="teacherName">Vlerësimi i Nxënësit</div><span class="protected" id="teacherSubjectBadge">Lënda</span></div><div class="profile"><div class="avatar">EK</div><div><h1>Nxënësi</h1><p class="small muted" id="profileSubtitle">Klasa V-A · Plan individual aktiv</p></div></div></header>
     <main>
       <section class="today-dashboard" id="todayDashboard" aria-labelledby="todayDashboardTitle"><div class="today-dashboard-title"><div><p>Pasqyra ditore</p><h2 id="todayDashboardTitle">Sot</h2></div><span id="todayStudentCount">0 nxënës</span></div><div class="today-student-list" id="todayStudentList"></div></section>

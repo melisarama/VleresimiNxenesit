@@ -12,7 +12,7 @@ export async function fetchParentStudentMapping(userId) {
 
 export async function fetchParentDashboardData(studentId, userId) {
   const [gradeResult, moodResult, subjectNoticeResult, teacherNoticeResult] = await Promise.all([
-    supabaseClient.from('grades').select('score,chapter_id,chapters(name),subjects(name)').eq('student_id', studentId),
+    supabaseClient.from('grades').select('score,chapter_id,academic_period_id,chapters(name),subjects(name),academic_periods(id,name,school_year,status)').eq('student_id', studentId),
     supabaseClient.from('daily_moods').select('mood,parent_comment,general_comment,reported_on').eq('student_id', studentId).order('reported_on', { ascending: false }),
     supabaseClient.from('subject_parent_notices').select('student_id,parent_id,subject_id,comment,created_at,subjects(name)').eq('student_id', studentId).eq('parent_id', userId).order('created_at', { ascending: false }),
     supabaseClient.from('teacher_parent_notices').select('id,student_id,teacher_id,message,created_at,read_at').eq('student_id', studentId).order('created_at', { ascending: false })

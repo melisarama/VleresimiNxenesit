@@ -75,6 +75,10 @@
 .admin-school-summary div:last-child { border-bottom:0; }
 .admin-school-summary span { color:#74817d; font-size:11px; }
 .admin-school-summary strong { color:#263b35; font-size:13px; }
+.admin-current-period { display:grid; gap:5px; padding:15px; border-left:4px solid #27735f; background:#edf6f2; }
+.admin-current-period strong { color:#183b31; font-size:16px; }
+.admin-current-period span { color:#356d5e; font-size:12px; font-weight:750; }
+.admin-current-period small { color:#6d7c77; font-size:11px; }
 
 .admin-table { overflow:hidden; border:1px solid #dce4e1; background:#fff; }
 .admin-table-body { max-height:clamp(280px,55vh,620px); overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
@@ -108,6 +112,15 @@
 .admin-subject-toggle strong { color:#263b35; font-size:13px; }
 .admin-subject-toggle small { margin-top:4px; color:#788580; font-size:10px; }
 .admin-subject-toggle input { width:19px; height:19px; accent-color:#27735f; }
+
+.admin-period-list { display:grid; gap:10px; }
+.admin-period-row { display:grid; grid-template-columns:minmax(220px,1fr) auto minmax(170px,auto); align-items:center; gap:18px; min-height:82px; padding:15px 17px; border:1px solid #dce5e2; border-left:4px solid #8b9894; background:#fff; }
+.admin-period-row.active { border-left-color:#27735f; background:#fbfefd; }
+.admin-period-row.planned { border-left-color:#b18a3e; }
+.admin-period-row > div:first-child { display:grid; gap:3px; }
+.admin-period-row > div:first-child span { color:#6c7a76; font-size:10px; font-weight:800; text-transform:uppercase; }
+.admin-period-row > div:first-child strong { color:#243c35; font-size:15px; }
+.admin-period-row > div:first-child small { color:#75827e; font-size:11px; }
 
 .admin-assignment-forms { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 .admin-assignment-group { min-width:0; padding:17px; border-top:3px solid #477f70; background:#fff; }
@@ -166,5 +179,6 @@
   .admin-table-row > div::before { content:attr(data-label); display:block; margin-bottom:2px; color:#83908c; font-size:9px; font-weight:800; text-transform:uppercase; }
   .admin-row-actions::before { display:none !important; }
   .admin-subject-grid { grid-template-columns:1fr; }
+  .admin-period-row { grid-template-columns:1fr; gap:9px; }
   .admin-assignment-group form { grid-template-columns:1fr; }
 }

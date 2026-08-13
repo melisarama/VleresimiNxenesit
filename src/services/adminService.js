@@ -27,11 +27,12 @@ export async function fetchAdminDashboardData(userId) {
     supabaseClient.from('teacher_subjects').select('*'),
     supabaseClient.from('teacher_students').select('*'),
     supabaseClient.from('teacher_classes').select('*'),
-    supabaseClient.from('parent_students').select('*')
+    supabaseClient.from('parent_students').select('*'),
+    supabaseClient.from('academic_periods').select('*').eq('school_id', schoolId).order('starts_on', { ascending: false })
   ]);
 
-  const [school, classes, students, profiles, subjects, schoolSubjects, teacherSubjects, teacherStudents, teacherClasses, parentStudents] = results.map(throwOnError);
-  return { profile, school, classes, students, profiles, subjects, schoolSubjects, teacherSubjects, teacherStudents, teacherClasses, parentStudents };
+  const [school, classes, students, profiles, subjects, schoolSubjects, teacherSubjects, teacherStudents, teacherClasses, parentStudents, academicPeriods] = results.map(throwOnError);
+  return { profile, school, classes, students, profiles, subjects, schoolSubjects, teacherSubjects, teacherStudents, teacherClasses, parentStudents, academicPeriods };
 }
 
 export async function saveAdminStudent({ id, schoolId, classId, className, firstName, lastName, status = 'active' }) {
@@ -87,6 +88,25 @@ export async function setSchoolSubject(schoolId, subjectId, active) {
     .upsert({ school_id: schoolId, subject_id: subjectId, active }, { onConflict: 'school_id,subject_id' })
     .select()
     .single());
+}
+
+export async function addSchoolSubject(schoolId, name) {
+  return throwOnError(await supabaseClient.rpc('admin_add_school_subject', {
+    target_school_id: schoolId,
+    subject_name: name.trim()
+  }));
+}
+
+export async function saveAcademicPeriod({ id = null, schoolId, name, schoolYear, startsOn, endsOn, status }) {
+  return throwOnError(await supabaseClient.rpc('admin_save_academic_period', {
+    period_id: id,
+    target_school_id: schoolId,
+    period_name: name.trim(),
+    period_school_year: schoolYear.trim(),
+    period_starts_on: startsOn,
+    period_ends_on: endsOn,
+    period_status: status
+  }));
 }
 
 export async function addAdminRelation(table, values) {

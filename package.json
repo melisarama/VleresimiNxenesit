@@ -5,7 +5,7 @@
   "description": "Mobile-first Supabase-backed school pilot for Mësim i Qartë.",
   "scripts": {
     "dev": "powershell -ExecutionPolicy Bypass -File ./start-localhost.ps1",
-    "check:js": "node --check src/main.js && node --check src/app.js && node --check src/admin/admin.js && node --check src/auth/accountSetup.js && node --check src/lib/supabaseClient.js && node --check src/services/adminService.js && node --check src/services/teacherService.js && node --check src/services/parentService.js && node --check src/utils/dates.js && node --check src/utils/html.js && node --check src/utils/notices.js && node --check src/data/staticData.js",
+    "check:js": "node --check src/main.js && node --check src/app.js && node --check src/admin/admin.js && node --check src/auth/accountSetup.js && node --check src/lib/supabaseClient.js && node --check src/services/adminService.js && node --check src/services/teacherService.js && node --check src/services/teacherMaterialService.js && node --check src/services/parentService.js && node --check src/teacher/teacherPrototype.js && node --check src/utils/dates.js && node --check src/utils/html.js && node --check src/utils/notices.js && node --check src/data/staticData.js",
     "supabase": "supabase",
     "supabase:login": "supabase login",
     "supabase:link": "supabase link --project-ref fmrmhaujktucffeyezrh",
@@ -15,7 +15,8 @@
     "db:reset:local": "supabase db reset",
     "functions:serve": "supabase functions serve support --env-file .env",
     "functions:deploy": "supabase functions deploy support",
-    "functions:deploy:admin": "supabase functions deploy admin-users"
+    "functions:deploy:admin": "supabase functions deploy admin-users",
+    "functions:deploy:retention": "supabase functions deploy material-retention --no-verify-jwt"
   },
   "devDependencies": {
     "supabase": "^2.39.2"
