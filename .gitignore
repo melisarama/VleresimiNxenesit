@@ -7,3 +7,6 @@ node_modules/
 .supabase/
 dist/
 coverage/
+server.log
+server.err.log
+server-debug.*.log

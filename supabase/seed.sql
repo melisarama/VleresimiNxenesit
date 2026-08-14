@@ -109,6 +109,24 @@ values
   ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'V-B', '2026/2027')
 on conflict (school_id, name, school_year) do nothing;
 
+insert into public.academic_periods (id, school_id, name, school_year, starts_on, ends_on, status)
+values (
+  '50000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'Gjysmëvjetori I',
+  '2026/2027',
+  '2026-09-01',
+  '2027-01-31',
+  'active'
+)
+on conflict (id) do update
+set name = excluded.name,
+    school_year = excluded.school_year,
+    starts_on = excluded.starts_on,
+    ends_on = excluded.ends_on,
+    status = excluded.status,
+    updated_at = now();
+
 insert into public.profiles (id, school_id, role, first_name, last_name, email)
 values
   ('00000000-0000-0000-0000-0000000000a1', '10000000-0000-0000-0000-000000000001', 'admin', 'Administratore', 'Demo', 'admin.demo@mesimi.test'),
@@ -118,11 +136,11 @@ values
   ('00000000-0000-0000-0000-0000000000c2', '10000000-0000-0000-0000-000000000001', 'parent', 'Prind', 'Dy', 'parent.two@mesimi.test')
 on conflict (id) do nothing;
 
-insert into public.students (id, school_id, class_id, first_name, last_name, class_name)
+insert into public.students (id, school_id, class_id, first_name, last_name, class_name, status)
 values
-  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Ana', 'Demo', 'V-A'),
-  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Driton', 'Demo', 'V-A'),
-  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'Lina', 'Demo', 'V-B')
+  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Ana', 'Demo', 'V-A', 'active'),
+  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Driton', 'Demo', 'V-A', 'active'),
+  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'Lina', 'Demo', 'V-B', 'active')
 on conflict (id) do nothing;
 
 insert into public.parent_students (parent_id, student_id)
@@ -148,6 +166,17 @@ values
   ('00000000-0000-0000-0000-0000000000b2', '30000000-0000-0000-0000-000000000003')
 on conflict do nothing;
 
+insert into public.teacher_classes (teacher_id, class_id)
+values
+  ('00000000-0000-0000-0000-0000000000b1', '20000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-0000000000b2', '20000000-0000-0000-0000-000000000002')
+on conflict do nothing;
+
+insert into public.school_subjects (school_id, subject_id, active)
+select '10000000-0000-0000-0000-000000000001', id, true
+from public.subjects
+on conflict (school_id, subject_id) do update set active = excluded.active;
+
 insert into public.chapters (id, subject_id, name, target_score)
 select '40000000-0000-0000-0000-000000000001', id, 'Numrat dhe veprimet', 4.0 from public.subjects where name = 'Matematikë'
 on conflict do nothing;
@@ -156,8 +185,8 @@ insert into public.chapters (id, subject_id, name, target_score)
 select '40000000-0000-0000-0000-000000000002', id, 'Leximi kuptimor', 4.0 from public.subjects where name = 'Gjuhë shqipe'
 on conflict do nothing;
 
-insert into public.grades (student_id, subject_id, chapter_id, teacher_id, score)
-select '30000000-0000-0000-0000-000000000001', s.id, '40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000b1', 4.2
+insert into public.grades (student_id, subject_id, chapter_id, teacher_id, academic_period_id, score)
+select '30000000-0000-0000-0000-000000000001', s.id, '40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000b1', '50000000-0000-0000-0000-000000000001', 4.2
 from public.subjects s where s.name = 'Matematikë';
 
 insert into public.daily_moods (student_id, parent_id, mood, general_comment, parent_comment, reported_on)

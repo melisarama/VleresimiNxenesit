@@ -1,0 +1,235 @@
+﻿    /* Student folder dashboard */
+    .student-folder-dashboard,
+    .communication-profile,
+    .health-history-panel { display:none; }
+    #teacherApp .phone.folder-dashboard-active {
+      width:min(100%,520px);
+      min-height:min(800px,calc(100svh - 40px));
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.94);
+      border-radius:32px;
+      background:
+        radial-gradient(circle at 13% 10%,rgba(222,235,255,.84),transparent 34%),
+        radial-gradient(circle at 88% 18%,rgba(239,228,255,.88),transparent 34%),
+        radial-gradient(circle at 82% 86%,rgba(255,229,215,.82),transparent 36%),
+        #f9fbff;
+      box-shadow:0 26px 70px rgba(70,76,125,.16);
+    }
+    #teacherApp .phone.folder-dashboard-active > header { display:none !important; }
+    #teacherApp .phone.folder-dashboard-active main {
+      display:block;
+      padding:22px 20px 118px;
+    }
+    #teacherApp .phone.folder-dashboard-active main > :not(#studentFolderDashboard) { display:none !important; }
+    #teacherApp .phone.folder-dashboard-active #studentFolderDashboard { display:grid !important; }
+    .student-folder-dashboard { gap:18px; }
+    .student-folder-nav {
+      display:grid;
+      grid-template-columns:42px minmax(0,1fr) 42px;
+      align-items:center;
+      gap:8px;
+    }
+    .student-folder-nav button {
+      width:42px;
+      height:42px;
+      padding:0;
+      border:1px solid rgba(91,83,130,.11);
+      border-radius:14px;
+      color:#3d4055;
+      background:rgba(255,255,255,.88);
+      box-shadow:0 6px 16px rgba(74,76,109,.08);
+      font-size:23px;
+      line-height:1;
+    }
+    .student-folder-nav button:disabled { opacity:.42; cursor:not-allowed; box-shadow:none; }
+    .student-folder-nav h1 {
+      margin:0;
+      color:#252d44;
+      font-size:21px;
+      line-height:1.2;
+      letter-spacing:-.025em;
+      text-align:center;
+    }
+    .student-folder-profile {
+      display:grid;
+      grid-template-columns:58px minmax(0,1fr);
+      align-items:center;
+      gap:14px;
+      padding:15px 17px;
+      border:1px solid rgba(102,111,143,.1);
+      border-radius:21px;
+      background:rgba(255,255,255,.92);
+      box-shadow:0 10px 26px rgba(72,82,118,.08);
+    }
+    .student-folder-avatar {
+      width:58px;
+      height:58px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      color:#3d3970;
+      background:linear-gradient(145deg,#e4ddff,#f1edff);
+      box-shadow:inset 0 0 0 1px rgba(100,82,171,.08);
+      font-size:16px;
+      font-weight:800;
+      letter-spacing:.03em;
+    }
+    .student-folder-profile h2 {
+      margin:0;
+      color:#273044;
+      font-size:18px;
+      line-height:1.25;
+    }
+    .student-folder-profile p {
+      margin:4px 0 0;
+      color:#5b687c;
+      font-size:12px;
+      font-weight:650;
+    }
+    .student-folder-grid {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:12px;
+    }
+    .student-folder-action {
+      min-width:0;
+      min-height:180px;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      padding:17px 15px;
+      overflow:hidden;
+      border:1px solid rgba(83,91,125,.08);
+      border-radius:22px;
+      color:#293247;
+      box-shadow:0 10px 25px rgba(72,82,118,.09);
+      text-align:left;
+      transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease;
+    }
+    .student-folder-action:hover {
+      transform:translateY(-2px);
+      border-color:rgba(95,80,162,.2);
+      box-shadow:0 14px 29px rgba(72,82,118,.13);
+    }
+    .student-folder-action:focus-visible {
+      outline:3px solid rgba(107,91,199,.3);
+      outline-offset:2px;
+    }
+    .folder-summary-action { background:linear-gradient(145deg,#eee9ff,#f8f6ff); }
+    .folder-academic-action { background:linear-gradient(145deg,#e4f2ff,#f5faff); }
+    .folder-health-action { background:linear-gradient(145deg,#e6f6ee,#f6fcf9); }
+    .student-folder-icon {
+      width:50px;
+      height:50px;
+      display:grid;
+      place-items:center;
+      margin-bottom:16px;
+      border-radius:17px;
+      color:#5747a1;
+      background:rgba(255,255,255,.76);
+      box-shadow:0 7px 15px rgba(81,76,116,.09);
+    }
+    .folder-academic-action .student-folder-icon { color:#326985; }
+    .folder-health-action .student-folder-icon { color:#34715a; }
+    .student-folder-icon svg {
+      width:27px;
+      height:27px;
+      fill:none;
+      stroke:currentColor;
+      stroke-width:1.8;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+    .student-folder-action strong {
+      display:block;
+      color:#283146;
+      font-size:15px;
+      line-height:1.25;
+    }
+    .student-folder-action > span:last-child {
+      display:block;
+      margin-top:7px;
+      color:#526075;
+      font-size:11.5px;
+      line-height:1.4;
+    }
+    #teacherApp .phone.folder-dashboard-active > nav {
+      position:fixed;
+      z-index:12;
+      left:50%;
+      bottom:14px;
+      width:min(calc(100% - 32px),500px);
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      padding:8px;
+      transform:translateX(-50%);
+      border:1px solid rgba(255,255,255,.96);
+      border-radius:20px;
+      background:rgba(255,255,255,.94);
+      box-shadow:0 14px 34px rgba(65,72,111,.18);
+      backdrop-filter:blur(18px);
+    }
+    #teacherApp .phone.folder-dashboard-active > nav button {
+      min-width:0;
+      min-height:64px;
+      padding:7px 3px;
+      border-radius:14px;
+      color:#657186;
+      font-size:11px;
+      line-height:1.15;
+    }
+    #teacherApp .phone.folder-dashboard-active > nav button.active { color:#5847b1; background:#f4f1ff; }
+    #teacherApp .phone.folder-dashboard-active > nav button.active .nav-icon {
+      color:#fff;
+      background:linear-gradient(135deg,#6b5bc7,#8d79e2);
+      box-shadow:0 6px 13px rgba(107,91,199,.28);
+    }
+    .health-history-panel { padding:16px; background:linear-gradient(145deg,#f3fff9,#fff); }
+    .health-information-grid { display:grid; gap:9px; margin-top:13px; }
+    .health-information-grid > div {
+      display:grid;
+      gap:3px;
+      padding:11px 12px;
+      border-radius:14px;
+      background:rgba(255,255,255,.82);
+      box-shadow:0 4px 12px rgba(66,105,88,.06);
+    }
+    .health-information-grid span { color:#53665e; font-size:11px; font-weight:750; }
+    .health-information-grid strong { color:#35443e; font-size:13px; }
+    .communication-profile { padding:16px; background:linear-gradient(145deg,#f4f0ff,#fff); }
+    #teacherApp .phone.folder-summary-view main > *,
+    #teacherApp .phone.folder-academic-view main > *,
+    #teacherApp .phone.folder-health-view main > * { display:none !important; }
+    #teacherApp .phone.folder-summary-view main > .student-work-header { display:flex !important; }
+    #teacherApp .phone.folder-summary-view main > #selectedProfile { display:flex !important; }
+    #teacherApp .phone.folder-summary-view main > #moodPanel { display:grid !important; }
+    #teacherApp .phone.folder-summary-view main > .preferences { display:block !important; }
+    #teacherApp .phone.folder-summary-view main > #communicationProfile { display:block !important; }
+    #teacherApp .phone.folder-academic-view main > .student-work-header { display:flex !important; }
+    #teacherApp .phone.folder-academic-view main > #selectedProfile { display:flex !important; }
+    #teacherApp .phone.folder-academic-view main > .current-result { display:block !important; }
+    #teacherApp .phone.folder-academic-view main > #gradingPanel { display:block !important; }
+    #teacherApp .phone.folder-health-view main > .student-work-header { display:flex !important; }
+    #teacherApp .phone.folder-health-view main > #selectedProfile { display:flex !important; }
+    #teacherApp .phone.folder-health-view main > #healthHistoryPanel { display:block !important; }
+    #teacherApp .phone.folder-health-view main > #studentSupportHistory { display:block !important; }
+    @media (max-width:560px) {
+      #teacherApp .phone.folder-dashboard-active {
+        min-height:100svh;
+        border:0;
+        border-radius:0;
+        box-shadow:none;
+      }
+      #teacherApp .phone.folder-dashboard-active main { padding:19px 15px 112px; }
+      #teacherApp .phone.folder-dashboard-active > nav { bottom:9px; width:calc(100% - 18px); }
+    }
+    @media (max-width:350px) {
+      .student-folder-grid { gap:9px; }
+      .student-folder-action { min-height:174px; padding:14px 12px; border-radius:19px; }
+      .student-folder-icon { width:45px; height:45px; margin-bottom:13px; }
+      .student-folder-action strong { font-size:14px; }
+      .student-folder-action > span:last-child { font-size:11px; }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      .student-folder-action { transition:none; }
+    }
