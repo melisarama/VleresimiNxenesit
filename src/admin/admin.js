@@ -43,6 +43,9 @@ function friendlyError(error, fallback = 'Veprimi nuk u krye. Provoni përsëri.
   const message = error && error.message ? error.message : '';
   if (/duplicate|unique/i.test(message)) return 'Ky regjistrim ekziston tashmë.';
   if (/ACCOUNT_EXISTS/.test(message)) return 'Një llogari me këtë email ekziston tashmë.';
+  if (/ACCOUNT_EMAIL_QUEUE_FAILED/.test(message)) return 'Llogaria u krijua, por email-i i llogarisë nuk u përgatit. Provoni përsëri.';
+  if (/ACCOUNT_EMAIL_SEND_FAILED/.test(message)) return 'Email-i me të dhënat e llogarisë nuk u dërgua. Kontrolloni konfigurimin e Resend.';
+  if (/ACCOUNT_CREATE_FAILED/.test(message)) return 'Llogaria nuk u krijua. Kontrolloni email-in dhe provoni përsëri.';
   if (/Failed to send|FunctionsHttpError|Failed to fetch/i.test(message)) return 'Ftesa nuk u dërgua. Kontrolloni nëse funksioni admin-users është publikuar.';
   if (/CLOSED_PERIOD_IMMUTABLE/.test(message)) return 'Një periudhë e mbyllur nuk mund të ndryshohet.';
   if (/INVALID_DATES/.test(message)) return 'Data e përfundimit duhet të jetë pas datës së fillimit.';
@@ -316,8 +319,8 @@ function openInviteDialog(role) {
     <label>Emri<input name="firstName" required maxlength="80"></label>
     <label>Mbiemri<input name="lastName" required maxlength="80"></label>
     <label>Email<input name="email" type="email" required autocomplete="email"></label>
-    <p class="admin-form-note">Përdoruesi do të marrë email për të vendosur fjalëkalimin. Llogaria lidhet automatikisht me këtë shkollë.</p>
-  `, 'Dërgo ftesën', async form => {
+    <p class="admin-form-note">Përdoruesi do të marrë email me email-in dhe fjalëkalimin e përkohshëm. Llogaria lidhet automatikisht me këtë shkollë.</p>
+  `, 'Krijo llogarinë', async form => {
     await inviteSchoolMember({ role, firstName: form.get('firstName'), lastName: form.get('lastName'), email: form.get('email') });
   });
 }

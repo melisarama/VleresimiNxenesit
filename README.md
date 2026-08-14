@@ -39,8 +39,8 @@ A mobile-first application for collaboration between teachers and parents in Kos
 
 - School-scoped administrator login.
 - Student creation, editing, class transfer, activation, and deactivation.
-- Teacher and parent invitations through a protected Edge Function.
-- Invite acceptance and password setup after the user opens the email link.
+- Teacher and parent account creation through a protected Edge Function.
+- Generated temporary-password email delivery for newly created teacher and parent accounts.
 - Class creation and management.
 - Academic period creation, activation, and closure with one active period per school.
 - Teacher-to-subject, teacher-to-class, teacher-to-student, and parent-to-student assignments.
@@ -97,15 +97,46 @@ npm run db:push:dry
 npm run db:push
 npm run functions:deploy:admin
 npm run functions:deploy:retention
+npm run functions:deploy:email
 ```
 
 The schema, migrations, RLS policies, and test data are located in `supabase/`.
 
-The `admin-users` Edge Function requires Supabase's built-in `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` secrets. Set `ADMIN_INVITE_REDIRECT_URL` as a Supabase Function secret to the deployed frontend URL. Email invitations also require the Supabase Auth Site URL and SMTP settings to be configured for the environment.
+The `admin-users` Edge Function requires Supabase's built-in `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` secrets. It also requires `EMAIL_DISPATCH_SECRET` so it can ask `email-dispatch` to send the generated temporary-password email after a teacher or parent account is created.
 
 Classroom files use the private `class-materials` Storage bucket. Images are resized to a maximum dimension of 1920 pixels and converted to WebP when that reduces their size. PDFs remain unchanged. Stored files are limited to 10 MB each; source images may be up to 25 MB before compression.
 
 Teachers can retain materials for 90 or 120 days. Permanent retention is intentionally unavailable. The `material-retention` Edge Function runs daily through Supabase Cron, creates an in-app warning seven days before expiry, removes expired Storage objects, and then deletes their metadata. Its generated `MATERIAL_RETENTION_CRON_SECRET` is stored in Supabase Function Secrets and Vault, not in this repository.
+
+## Email Delivery
+
+The app queues notification emails in `public.email_deliveries` when a user has opted into the relevant email preference. Admin-created teacher and parent accounts also queue an `account_invite` email with a temporary generated password. The `email-dispatch` Supabase Edge Function sends queued rows through Resend and marks each delivery as `sent` or `failed`.
+
+Required Supabase Function secrets:
+
+```env
+RESEND_API_KEY=re_your-resend-api-key
+EMAIL_DISPATCH_SECRET=change-this-long-random-secret
+EMAIL_FROM="Mesim i Qarte <onboarding@resend.dev>"
+EMAIL_REPLY_TO=
+EMAIL_APP_URL=https://your-deployed-site.example
+EMAIL_TEST_RECIPIENT=
+EMAIL_DISPATCH_LIMIT=25
+EMAIL_MAX_ATTEMPTS=3
+```
+
+For free testing without a verified domain, use Resend's default sender (`onboarding@resend.dev`) and set `EMAIL_TEST_RECIPIENT` to the email address allowed by your Resend account. This redirects all outgoing app emails to that test inbox while preserving the real recipient in `email_deliveries`.
+
+For a school pilot, verify a real domain or subdomain in Resend, update `EMAIL_FROM` to something like `Mesim i Qarte <no-reply@mail.example.org>`, and configure SPF, DKIM, and DMARC records. Upgrading from Resend's free tier to a paid plan should not require app code changes; keep the same function and update the plan/key/domain settings as needed.
+
+Local/manual dispatch:
+
+```powershell
+npm run functions:serve:email
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:54321/functions/v1/email-dispatch?dry_run=true" -Headers @{"x-email-secret"="$env:EMAIL_DISPATCH_SECRET"}
+```
+
+Remove `?dry_run=true` only when you intentionally want to send queued emails.
 
 ## Security
 
@@ -120,7 +151,7 @@ Teachers can retain materials for 90 or 120 days. Permanent retention is intenti
 - Realtime subscriptions listen only to RLS-protected `user_notifications` changes and are removed on logout.
 - Material recipients are snapshotted at publication, and private files are readable only through authorized short-lived links.
 - An administrator can manage only profiles, students, classes, subjects, and assignments belonging to their own school.
-- Auth invitations use the service role only inside the `admin-users` Edge Function; the service-role key is never sent to the browser.
+- Account creation uses the service role only inside the `admin-users` Edge Function; the service-role key and generated temporary password are never sent to the browser.
 - Access-denial cases between users must also be tested before the pilot.
 
 ## Project Structure
@@ -150,16 +181,11 @@ The project is a functional prototype, but it is not yet ready for real school d
 
 ### Email delivery
 
-- Configure production SMTP for Supabase Auth emails such as account invites, password setup, and password recovery. Supabase's built-in sender is suitable only for demos and has strict delivery/rate limits.
-- Choose a transactional email provider for app notifications. Resend, Postmark, SendGrid, Brevo, or AWS SES would work; Resend is a practical default for a small pilot because it has a useful free tier and simple developer setup.
+- Configure production SMTP for Supabase Auth emails such as password recovery. Supabase's built-in sender is suitable only for demos and has strict delivery/rate limits.
 - Verify a real sending domain and sender address, for example `no-reply@mail.example.org` or `notifications@mail.example.org`. Avoid personal Gmail-style senders for production school communication.
 - Configure DNS records for SPF, DKIM, and DMARC to improve deliverability and reduce spam filtering.
-- Add an email delivery Edge Function or background job for saved preferences:
-  - teacher emails for new parent messages,
-  - teacher daily digests,
-  - parent emails for new materials,
-  - parent emails for assessments and final grades.
-- Add delivery logging and retry handling, for example an `email_deliveries` table with recipient, template, notification id, status, provider response, and timestamps.
+- Schedule or manually trigger the `email-dispatch` function in production.
+- Add teacher daily digest generation. Account creation emails, immediate parent-message emails, parent material emails, and parent assessment/final-grade emails are queued by the current notification email system.
 - Create Albanian transactional templates for invites, material publication, assessment/final-grade publication, new messages, and daily digests.
 
 ### AI support

@@ -14,9 +14,11 @@
     "db:push:seed": "supabase db push --include-seed",
     "db:reset:local": "supabase db reset",
     "functions:serve": "supabase functions serve support --env-file .env",
+    "functions:serve:email": "supabase functions serve email-dispatch --env-file .env --no-verify-jwt",
     "functions:deploy": "supabase functions deploy support",
     "functions:deploy:admin": "supabase functions deploy admin-users",
-    "functions:deploy:retention": "supabase functions deploy material-retention --no-verify-jwt"
+    "functions:deploy:retention": "supabase functions deploy material-retention --no-verify-jwt",
+    "functions:deploy:email": "supabase functions deploy email-dispatch --no-verify-jwt"
   },
   "devDependencies": {
     "supabase": "^2.39.2"
