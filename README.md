@@ -19,7 +19,7 @@ A mobile-first application for collaboration between teachers and parents in Kos
 - Continuous chapter assessment and final grades by academic period.
 - Saved email-notification preferences; delivery will be implemented later.
 - Live inbox and notification updates through Supabase Realtime without refreshing the page.
-- AI pedagogical assistant for immediate classroom situations.
+- AI pedagogical assistant backend for immediate classroom situations; the current teacher-facing UI still needs to be connected.
 
 ### For Parents
 
@@ -145,6 +145,53 @@ Teachers can retain materials for 90 or 120 days. Permanent retention is intenti
 ## Status
 
 The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow and the main teacher and parent workflows are database-backed, including assessments, materials, mood history, notifications, shared inbox conversations, and saved email preferences. Production email delivery, complete adversarial RLS testing, a refreshed fictional test dataset, and a review of children's data privacy are still required before a pilot.
+
+## Remaining Implementation Work
+
+### Email delivery
+
+- Configure production SMTP for Supabase Auth emails such as account invites, password setup, and password recovery. Supabase's built-in sender is suitable only for demos and has strict delivery/rate limits.
+- Choose a transactional email provider for app notifications. Resend, Postmark, SendGrid, Brevo, or AWS SES would work; Resend is a practical default for a small pilot because it has a useful free tier and simple developer setup.
+- Verify a real sending domain and sender address, for example `no-reply@mail.example.org` or `notifications@mail.example.org`. Avoid personal Gmail-style senders for production school communication.
+- Configure DNS records for SPF, DKIM, and DMARC to improve deliverability and reduce spam filtering.
+- Add an email delivery Edge Function or background job for saved preferences:
+  - teacher emails for new parent messages,
+  - teacher daily digests,
+  - parent emails for new materials,
+  - parent emails for assessments and final grades.
+- Add delivery logging and retry handling, for example an `email_deliveries` table with recipient, template, notification id, status, provider response, and timestamps.
+- Create Albanian transactional templates for invites, material publication, assessment/final-grade publication, new messages, and daily digests.
+
+### AI support
+
+- Connect the teacher `Mbështetja AI` screen to the existing `support` Supabase Edge Function.
+- Add the chat/input UI, quick classroom prompts, loading states, error states, and output rendering for observation, actions, observation cue, and escalation guidance.
+- Add visible guardrails telling teachers not to enter personally identifying student data into the assistant.
+- Verify the `OPENAI_API_KEY`, `OPENAI_MODEL`, `AI_PROVIDER`, and `SUPABASE_SERVICE_ROLE_KEY` secrets in Supabase before enabling the feature outside local testing.
+
+### Security and privacy
+
+- Run adversarial RLS tests before any pilot:
+  - parents cannot read another parent's child data,
+  - teachers cannot read, grade, message, or publish materials to unassigned students,
+  - teachers cannot use unassigned subjects,
+  - admins cannot manage another school's records,
+  - private Storage files cannot be downloaded by unauthorized users.
+- Review children's data privacy requirements, including consent, data minimization, support-profile sensitivity, mood-history retention, deletion/export expectations, and incident handling.
+- Check all Edge Functions for least-privilege service-role use and clear error handling.
+
+### Test data and QA
+
+- Replace the current small demo seed with a larger coherent fictional dataset before full manual testing.
+- Add mobile and desktop end-to-end tests for the main flows: login, admin assignment, parent mood, parent messages, teacher replies, assessments, final grades, material publish/delete/download, notifications, and logout.
+- Add a focused QA pass for responsive teacher and parent navigation, since mobile-specific regressions have appeared during development.
+
+### Deployment readiness
+
+- Deploy and verify all required Edge Functions: `admin-users`, `material-retention`, and `support`.
+- Configure Supabase Auth Site URL, redirect URLs, SMTP, and production secrets.
+- Confirm the material-retention cron job is scheduled and that expiry warnings/deletions run successfully.
+- Add basic operational monitoring for Edge Function failures, email delivery failures, and unexpected auth/database errors.
 
 ## Changelog
 
