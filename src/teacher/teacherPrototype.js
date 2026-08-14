@@ -7,13 +7,15 @@ import {
   publishTeacherMaterial
 } from '../services/teacherMaterialService.js';
 import {
-  deleteParentNotice,
+  archiveTeacherThread,
+  deleteTeacherNotification,
   createTeacherChapter,
-  markParentNoticeRead,
-  replyToParentNotice,
+  markTeacherNotificationRead,
+  markTeacherThreadRead,
   saveChapterAssessment,
   saveTeacherFinalGrade,
-  saveTeacherNotificationPreferences
+  saveTeacherNotificationPreferences,
+  sendTeacherThreadMessage
 } from '../services/teacherService.js';
 
 const titles = {
@@ -38,6 +40,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
 
   let students = [];
   let selectedStudent = null;
+  let moodHistories = {};
   let messages = [];
   let unreadOnly = false;
   let activeMessageId = null;
@@ -131,15 +134,26 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
 
   function renderMoodDetail() {
     const heading = detailHeading('Humori ditor dhe historiku', `Njoftimet për ${selectedStudent.name} nga prindi.`);
-    if (!selectedStudent.mood) return `${heading}<div class="teacher-detail-empty"><strong>Pa gjendje të raportuar sot</strong><p>Prindi nuk ka dërguar ende një përditësim për ditën e sotme.</p></div>`;
-    return `${heading}<div class="teacher-mood-summary"><article class="teacher-current-mood"><small>Sot</small><strong>${escapeHtml(selectedStudent.mood)}</strong><p>${escapeHtml(selectedStudent.moodComment || 'Pa koment shtesë.')}</p></article><div class="teacher-detail-empty"><strong>Nuk ka hyrje të mëparshme</strong><p>Historiku është bosh.</p></div></div>`;
+    const history = (moodHistories[selectedStudent.id] || []).filter(item => item.reported_on !== new Date().toISOString().slice(0, 10));
+    const current = selectedStudent.mood
+      ? `<article class="teacher-current-mood"><small>Sot</small><strong>${escapeHtml(selectedStudent.mood)}</strong><p>${escapeHtml(selectedStudent.moodComment || 'Pa koment shtesë.')}</p></article>`
+      : '<div class="teacher-detail-empty"><strong>Pa gjendje të raportuar sot</strong><p>Prindi nuk ka dërguar ende një përditësim për ditën e sotme.</p></div>';
+    const previous = history.length
+      ? `<div class="teacher-history-list">${history.map(item => `<article><time>${escapeHtml(new Intl.DateTimeFormat('sq-AL', { dateStyle: 'medium' }).format(new Date(`${item.reported_on}T12:00:00`)))}</time><strong>${escapeHtml(item.mood)}</strong><p>${escapeHtml(item.parent_comment || 'Pa koment shtesë.')}</p></article>`).join('')}</div>`
+      : '<div class="teacher-detail-empty"><strong>Nuk ka hyrje të mëparshme</strong><p>Historiku është bosh.</p></div>';
+    return `${heading}<div class="teacher-mood-summary">${current}${previous}</div>`;
   }
 
   function renderPreferencesDetail() {
     const heading = detailHeading('Preferencat dhe komunikimi', 'Të dhënat e konfirmuara për mbështetjen e nxënësit.');
-    const hasProfile = selectedStudent.supportSummary || selectedStudent.accessibilityInformation || selectedStudent.preferredMode;
+    const hasProfile = selectedStudent.supportSummary || selectedStudent.accessibilityInformation || selectedStudent.preferredMode || selectedStudent.learningPreferences?.length || selectedStudent.communicationLanguage || selectedStudent.communicationMethod;
     if (!hasProfile) return `${heading}<div class="teacher-detail-empty"><strong>Pa preferenca të raportuara</strong><p>Ky seksion do të plotësohet pasi familja të japë informacionin përkatës.</p></div>`;
-    return `${heading}<div class="teacher-preference-grid">${selectedStudent.supportSummary ? `<article><span>Përmbledhja</span><p>${escapeHtml(selectedStudent.supportSummary)}</p></article>` : ''}${selectedStudent.preferredMode ? `<article><span>Mënyra e preferuar</span><p>${escapeHtml(selectedStudent.preferredMode)}</p></article>` : ''}${selectedStudent.accessibilityInformation ? `<article><span>Qasshmëria</span><p>${escapeHtml(selectedStudent.accessibilityInformation)}</p></article>` : ''}</div>`;
+    return `${heading}<div class="teacher-preference-grid">${selectedStudent.learningPreferences?.length ? `<article><span>Preferencat e të nxënit</span><p>${escapeHtml(selectedStudent.learningPreferences.join(', '))}</p></article>` : ''}${selectedStudent.communicationLanguage ? `<article><span>Gjuha e komunikimit</span><p>${escapeHtml(selectedStudent.communicationLanguage)}</p></article>` : ''}${selectedStudent.communicationMethod ? `<article><span>Mënyra e komunikimit</span><p>${escapeHtml(selectedStudent.communicationMethod)}</p></article>` : ''}${selectedStudent.supportSummary ? `<article><span>Përmbledhja</span><p>${escapeHtml(selectedStudent.supportSummary)}</p></article>` : ''}${selectedStudent.preferredMode ? `<article><span>Mënyra e preferuar</span><p>${escapeHtml(selectedStudent.preferredMode)}</p></article>` : ''}${selectedStudent.accessibilityInformation ? `<article><span>Qasshmëria</span><p>${escapeHtml(selectedStudent.accessibilityInformation)}</p></article>` : ''}</div>`;
+  }
+
+  function formatInboxTime(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('sq-AL', { dateStyle: 'short', timeStyle: 'short' }).format(date);
   }
 
   function proficiencyOptions(value) {
@@ -474,18 +488,18 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       button.type = 'button';
       button.className = `teacher-message-preview${message.unread ? '' : ' read'}`;
       button.classList.toggle('active', message.id === activeMessageId);
-      button.innerHTML = `<span class="unread-dot"></span><div><strong>${escapeHtml(message.parent)}</strong><p>${escapeHtml(message.subject)}</p><p>${escapeHtml(message.student)}</p></div><time>${escapeHtml(message.time)}</time>`;
-      button.addEventListener('click', () => openMessage(message, button));
+      button.innerHTML = `<span class="unread-dot"></span><div><strong>${escapeHtml(message.parent)}</strong><p>${escapeHtml(message.subject)}</p><p>${escapeHtml(message.student)}</p></div><time>${escapeHtml(formatInboxTime(message.time))}</time>`;
+      button.addEventListener('click', () => openMessage(message));
       list.appendChild(button);
     });
   }
 
-  function openMessage(message, preview) {
+  function openMessage(message) {
     activeMessageId = message.id;
     renderMessages();
     const detail = document.getElementById('teacherMessageDetail');
-    const replies = (message.replies || []).map(reply => `<p class="teacher-saved-reply"><strong>Ju</strong>${escapeHtml(reply.message)}<time>${escapeHtml(new Intl.DateTimeFormat('sq-AL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(reply.created_at)))}</time></p>`).join('');
-    detail.innerHTML = `<button class="teacher-back-button teacher-message-mobile-back" type="button">← Kthehu</button><div class="teacher-message-heading"><div class="teacher-message-heading-row"><div><h2>${escapeHtml(message.subject)}</h2><p>${escapeHtml(message.parent)} · ${escapeHtml(message.student)} · ${escapeHtml(message.time)}</p></div><div class="teacher-message-actions">${message.unread ? '<button type="button" data-message-action="read">Shëno si të lexuar</button>' : '<span>Mesazh i lexuar</span>'}<button class="danger" type="button" data-message-action="delete">Fshi</button></div></div><p class="teacher-message-action-status" aria-live="polite"></p></div><div class="teacher-message-body"><p>${escapeHtml(message.body)}</p>${replies}</div><form class="teacher-reply-box"><label class="sr-only" for="teacherReplyText">Përgjigjja</label><textarea id="teacherReplyText" maxlength="1200" placeholder="Shkruani përgjigjen..."></textarea><p class="teacher-message-action-status" aria-live="polite"></p><div><button class="teacher-primary-button" type="submit">Dërgo përgjigjen</button></div></form>`;
+    const conversation = message.type === 'thread' ? message.messages.map(item => `<p class="teacher-saved-reply${item.sender_id === materialContext.teacherId ? ' teacher-own-message' : ''}"><strong>${item.sender_id === materialContext.teacherId ? 'Ju' : 'Prindi'}</strong>${escapeHtml(item.body)}<time>${escapeHtml(new Intl.DateTimeFormat('sq-AL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.created_at)))}</time></p>`).join('') : `<p>${escapeHtml(message.body)}</p>`;
+    detail.innerHTML = `<button class="teacher-back-button teacher-message-mobile-back" type="button">← Kthehu</button><div class="teacher-message-heading"><div class="teacher-message-heading-row"><div><h2>${escapeHtml(message.subject)}</h2><p>${escapeHtml(message.parent)} · ${escapeHtml(message.student)}${message.context ? ` · ${escapeHtml(message.context)}` : ''}</p></div><div class="teacher-message-actions">${message.unread ? '<button type="button" data-message-action="read">Shëno si të lexuar</button>' : '<span>Mesazh i lexuar</span>'}<button class="danger" type="button" data-message-action="delete">Fshi</button></div></div><p class="teacher-message-action-status" aria-live="polite"></p></div><div class="teacher-message-body">${conversation}</div>${message.type === 'thread' ? '<form class="teacher-reply-box"><label class="sr-only" for="teacherReplyText">Përgjigjja</label><textarea id="teacherReplyText" maxlength="2000" placeholder="Shkruani përgjigjen..."></textarea><p class="teacher-message-action-status" aria-live="polite"></p><div><button class="teacher-primary-button" type="submit">Dërgo përgjigjen</button></div></form>' : ''}`;
     detail.classList.add('mobile-open');
     detail.querySelector('.teacher-message-mobile-back').addEventListener('click', () => detail.classList.remove('mobile-open'));
     detail.querySelector('[data-message-action="read"]')?.addEventListener('click', async event => {
@@ -494,7 +508,8 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       button.disabled = true;
       status.textContent = 'Duke e shënuar si të lexuar…';
       try {
-        await markParentNoticeRead(message.id);
+        if (message.type === 'thread') await markTeacherThreadRead(message.id);
+        else await markTeacherNotificationRead(message.id);
         message.unread = false;
         renderMessages();
         openMessage(message);
@@ -510,7 +525,8 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       button.disabled = true;
       status.textContent = 'Duke e fshirë mesazhin…';
       try {
-        await deleteParentNotice(message.id);
+        if (message.type === 'thread') await archiveTeacherThread(message.id);
+        else await deleteTeacherNotification(message.id);
         messages = messages.filter(item => item.id !== message.id);
         activeMessageId = null;
         detail.classList.remove('mobile-open');
@@ -521,7 +537,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
         status.textContent = error.message || 'Mesazhi nuk u fshi.';
       }
     });
-    detail.querySelector('form').addEventListener('submit', async event => {
+    detail.querySelector('form')?.addEventListener('submit', async event => {
       event.preventDefault();
       const textarea = detail.querySelector('textarea');
       if (!textarea.value.trim()) return;
@@ -530,8 +546,9 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       button.disabled = true;
       status.textContent = 'Duke dërguar përgjigjen…';
       try {
-        const reply = await replyToParentNotice(message.id, materialContext.teacherId, textarea.value);
-        (message.replies ||= []).push(reply);
+        const reply = await sendTeacherThreadMessage(message.id, textarea.value);
+        message.messages.push(reply);
+        message.body = reply.body;
         openMessage(message);
       } catch (error) {
         button.disabled = false;
@@ -584,13 +601,14 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   renderMessages();
 
   return {
-    setData({ teacherName, teacherEmail = '', teacherId, schoolId, subjects = [], academicPeriods: nextPeriods = [], students: nextStudents = [], moods = {}, messages: nextMessages = [], chapters = [], assessments = [], finalGrades = [], preferences = null } = {}) {
+    setData({ teacherName, teacherEmail = '', teacherId, schoolId, subjects = [], academicPeriods: nextPeriods = [], students: nextStudents = [], moods = {}, moodHistories: nextMoodHistories = {}, messages: nextMessages = [], chapters = [], assessments = [], finalGrades = [], preferences = null } = {}) {
       if (teacherName) {
         root.querySelectorAll('[data-teacher-name]').forEach(element => { element.textContent = teacherName; });
         const avatar = initials(teacherName);
         root.querySelectorAll('.teacher-account-avatar,.teacher-header-avatar').forEach(element => { element.textContent = avatar; });
       }
       students = Array.isArray(nextStudents) ? nextStudents.map(student => ({ ...student, mood: moods[student.name]?.mood || '', moodComment: moods[student.name]?.comment || '' })) : [];
+      moodHistories = nextMoodHistories;
       selectedStudent = students[0] || null;
       renderStudents(document.getElementById('teacherStudentSearch').value);
       materialContext = { teacherId: teacherId || materialContext.teacherId, schoolId: schoolId || materialContext.schoolId, subjects };
@@ -607,6 +625,15 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       renderMessages();
       renderMaterialFormOptions();
       loadMaterialLibrary();
+    },
+    setMessages(nextMessages = []) {
+      messages = Array.isArray(nextMessages) ? nextMessages.map(message => ({ ...message })) : [];
+      const activeMessage = messages.find(message => message.id === activeMessageId);
+      if (activeMessage) openMessage(activeMessage);
+      else {
+        activeMessageId = null;
+        renderMessages();
+      }
     }
   };
 }

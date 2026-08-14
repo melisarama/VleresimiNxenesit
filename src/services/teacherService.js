@@ -12,6 +12,9 @@ export async function fetchTeacherDashboardData(userId) {
     teacherNoticeResult,
     parentNoticeResult,
     parentReplyResult,
+    threadResult,
+    threadMessageResult,
+    inboxNotificationResult,
     finalGradeResult,
     preferenceResult,
     periodResult
@@ -26,6 +29,9 @@ export async function fetchTeacherDashboardData(userId) {
     supabaseClient.from('teacher_parent_notices').select('id,student_id,teacher_id,message,created_at,read_at').order('created_at', { ascending: false }),
     supabaseClient.from('subject_parent_notices').select('id,student_id,parent_id,subject_id,comment,created_at,read_at,students(first_name,last_name),subjects(name)').order('created_at', { ascending: false }),
     supabaseClient.from('parent_notice_replies').select('id,notice_id,teacher_id,message,created_at').order('created_at'),
+    supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,subject_id,title,teacher_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name)').eq('teacher_id', userId).order('updated_at', { ascending: false }),
+    supabaseClient.from('communication_messages').select('id,thread_id,sender_id,body,read_at,created_at').order('created_at'),
+    supabaseClient.from('user_notifications').select('*').eq('recipient_id', userId).order('created_at', { ascending: false }),
     supabaseClient.from('final_grades').select('id,student_id,teacher_id,subject_id,academic_period_id,grade,parent_message,published_at,updated_at'),
     supabaseClient.from('teacher_notification_preferences').select('*').eq('profile_id', userId).maybeSingle(),
     supabaseClient.from('academic_periods').select('id,name,school_year,starts_on,ends_on,status').order('starts_on', { ascending: false })
@@ -42,9 +48,28 @@ export async function fetchTeacherDashboardData(userId) {
     teacherNoticeResult,
     parentNoticeResult,
     parentReplyResult,
+    threadResult,
+    threadMessageResult,
+    inboxNotificationResult,
     finalGradeResult,
     preferenceResult,
     periodResult
+  };
+}
+
+export async function fetchTeacherInboxData(userId) {
+  const [threadResult, threadMessageResult, inboxNotificationResult] = await Promise.all([
+    supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,subject_id,title,teacher_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name)').eq('teacher_id', userId).order('updated_at', { ascending: false }),
+    supabaseClient.from('communication_messages').select('id,thread_id,sender_id,body,read_at,created_at').order('created_at'),
+    supabaseClient.from('user_notifications').select('*').eq('recipient_id', userId).order('created_at', { ascending: false })
+  ]);
+  [threadResult, threadMessageResult, inboxNotificationResult].forEach(result => {
+    if (result.error) throw result.error;
+  });
+  return {
+    threads: threadResult.data || [],
+    messages: threadMessageResult.data || [],
+    notifications: inboxNotificationResult.data || []
   };
 }
 
@@ -118,5 +143,31 @@ export async function markParentNoticeRead(noticeId) {
 
 export async function deleteParentNotice(noticeId) {
   const { error } = await supabaseClient.from('subject_parent_notices').delete().eq('id', noticeId);
+  if (error) throw error;
+}
+
+export async function sendTeacherThreadMessage(threadId, message) {
+  const { data, error } = await supabaseClient.rpc('send_communication_message', { target_thread: threadId, message_body: message });
+  if (error) throw error;
+  return data;
+}
+
+export async function markTeacherThreadRead(threadId) {
+  const { error } = await supabaseClient.rpc('mark_communication_thread_read', { target_thread: threadId });
+  if (error) throw error;
+}
+
+export async function archiveTeacherThread(threadId) {
+  const { error } = await supabaseClient.rpc('archive_communication_thread', { target_thread: threadId });
+  if (error) throw error;
+}
+
+export async function markTeacherNotificationRead(notificationId) {
+  const { error } = await supabaseClient.rpc('mark_user_notification_read', { target_notification: notificationId });
+  if (error) throw error;
+}
+
+export async function deleteTeacherNotification(notificationId) {
+  const { error } = await supabaseClient.from('user_notifications').delete().eq('id', notificationId);
   if (error) throw error;
 }
