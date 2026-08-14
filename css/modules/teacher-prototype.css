@@ -251,7 +251,9 @@
 .teacher-material-list article span,.teacher-material-list article small { color:var(--tp-muted); font-size:11px; }
 .teacher-material-list article h3 { margin-top:4px; }
 .teacher-material-list article p { margin:5px 0 8px; color:#56615b; font-size:12px; }
-.teacher-material-list article > button { border:0; background:transparent; font-weight:800; }
+.teacher-material-delete { width:36px; height:36px; display:grid; place-items:center; border:0; border-radius:10px; color:#9a3e43; background:#fff1f3; font-size:22px; line-height:1; font-weight:800; }
+.teacher-material-delete:hover { background:#ffe4e8; }
+.teacher-material-delete:disabled { opacity:.55; cursor:not-allowed; }
 .teacher-material-downloads { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
 .teacher-material-downloads button { min-height:30px; padding:5px 8px; border:1px solid #d8d0e9; border-radius:9px; color:#5d46b2; background:#faf8ff; font-size:10px; font-weight:700; }
 .teacher-material-empty { padding:34px 18px; border:1px dashed #d8d0e9; border-radius:16px; color:var(--tp-muted); background:rgba(255,255,255,.66); text-align:center; }
@@ -319,7 +321,7 @@
 .teacher-settings-layout dt { color:var(--tp-muted); }
 .teacher-settings-layout dd { margin:0; font-weight:700; }
 .teacher-mobile-nav { display:none; }
-.teacher-logout-dialog {
+.teacher-logout-dialog,.teacher-delete-dialog {
   width:min(420px,calc(100% - 28px));
   padding:0;
   border:0;
@@ -328,15 +330,18 @@
   background:#fff;
   box-shadow:0 24px 70px rgba(26,35,30,.24);
 }
-.teacher-logout-dialog::backdrop { background:rgba(25,32,28,.55); }
-.teacher-logout-dialog form { display:grid; justify-items:center; padding:28px 24px 22px; text-align:center; }
-.teacher-logout-symbol { width:48px; height:48px; display:grid; place-items:center; margin-bottom:16px; border-radius:8px; color:#8a3f39; background:#fae9e7; font-size:24px; }
-.teacher-logout-dialog h2 { font-size:19px; }
-.teacher-logout-dialog p { margin-top:8px; color:var(--tp-muted); font-size:13px; line-height:1.5; }
-.teacher-logout-dialog form > div { width:100%; display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:23px; }
-.teacher-logout-dialog button { min-height:41px; padding:8px 12px; border:1px solid var(--tp-line); border-radius:6px; color:var(--tp-ink); background:#fff; font-size:12px; font-weight:750; }
-.teacher-logout-dialog .teacher-confirm-logout { border-color:#a5453e; color:#fff; background:#a5453e; }
-.teacher-logout-dialog .teacher-confirm-logout:hover { background:#84352f; }
+.teacher-logout-dialog::backdrop,.teacher-delete-dialog::backdrop { background:rgba(25,32,28,.55); }
+.teacher-delete-dialog.fallback-open { position:fixed; z-index:100; inset:50% auto auto 50%; display:block; transform:translate(-50%,-50%); }
+.teacher-delete-dialog.fallback-open::before { content:""; position:fixed; z-index:-1; inset:-100vh -100vw; background:rgba(25,32,28,.55); }
+.teacher-logout-dialog form,.teacher-delete-dialog form { display:grid; justify-items:center; padding:28px 24px 22px; text-align:center; }
+.teacher-logout-symbol,.teacher-delete-symbol { width:48px; height:48px; display:grid; place-items:center; margin-bottom:16px; border-radius:8px; color:#8a3f39; background:#fae9e7; font-size:24px; }
+.teacher-delete-symbol { color:#99404b; background:#fff0f3; font-size:30px; }
+.teacher-logout-dialog h2,.teacher-delete-dialog h2 { font-size:19px; }
+.teacher-logout-dialog p,.teacher-delete-dialog p { margin-top:8px; color:var(--tp-muted); font-size:13px; line-height:1.5; }
+.teacher-logout-dialog form > div,.teacher-delete-dialog form > div { width:100%; display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:23px; }
+.teacher-logout-dialog button,.teacher-delete-dialog button { min-height:41px; padding:8px 12px; border:1px solid var(--tp-line); border-radius:6px; color:var(--tp-ink); background:#fff; font-size:12px; font-weight:750; }
+.teacher-logout-dialog .teacher-confirm-logout,.teacher-delete-dialog .teacher-confirm-delete { border-color:#a5453e; color:#fff; background:#a5453e; }
+.teacher-logout-dialog .teacher-confirm-logout:hover,.teacher-delete-dialog .teacher-confirm-delete:hover { background:#84352f; }
 
 @media (max-width:800px) {
   #teacherApp { background:#f7f8f7; }
@@ -372,8 +377,8 @@
   .teacher-section-heading .teacher-primary-button { width:100%; }
   .teacher-form-grid { grid-template-columns:1fr; }
   .teacher-attachment-row { align-items:flex-start; flex-wrap:wrap; }
-  .teacher-material-list article { grid-template-columns:45px minmax(0,1fr); }
-  .teacher-material-list article > button { display:none; }
+  .teacher-material-list article { grid-template-columns:45px minmax(0,1fr) 40px; gap:10px; padding:14px 12px; }
+  .teacher-material-delete { width:40px; height:40px; border:1px solid #f0cbd1; }
   .teacher-email-callout { grid-template-columns:30px minmax(0,1fr); }
   .teacher-email-callout button { grid-column:2; justify-self:start; }
   .teacher-inbox-layout { display:block; min-height:0; border:0; overflow:visible; background:transparent; }
@@ -575,15 +580,15 @@
 .teacher-support-placeholder button { border-radius:11px; background:#f0edf5; }
 .teacher-toggle-row input { accent-color:#7056c4; }
 .teacher-save-status { color:#5d46b2 !important; }
-.teacher-logout-dialog {
+.teacher-logout-dialog,.teacher-delete-dialog {
   border-radius:22px;
   box-shadow:0 30px 75px rgba(73,62,112,.23);
 }
-.teacher-logout-dialog::backdrop { background:rgba(44,37,67,.56); backdrop-filter:blur(3px); }
-.teacher-logout-symbol { border-radius:15px; color:#9a4762; background:linear-gradient(145deg,#fff0ed,#ffe8ef); }
-.teacher-logout-dialog button { border-color:#dcd5e9; border-radius:12px; }
-.teacher-logout-dialog .teacher-confirm-logout { border-color:#a45069; background:linear-gradient(145deg,#a45069,#bc657e); }
-.teacher-logout-dialog .teacher-confirm-logout:hover { background:linear-gradient(145deg,#923e57,#a94d68); }
+.teacher-logout-dialog::backdrop,.teacher-delete-dialog::backdrop { background:rgba(44,37,67,.56); backdrop-filter:blur(3px); }
+.teacher-logout-symbol,.teacher-delete-symbol { border-radius:15px; color:#9a4762; background:linear-gradient(145deg,#fff0ed,#ffe8ef); }
+.teacher-logout-dialog button,.teacher-delete-dialog button { border-color:#dcd5e9; border-radius:12px; }
+.teacher-logout-dialog .teacher-confirm-logout,.teacher-delete-dialog .teacher-confirm-delete { border-color:#a45069; background:linear-gradient(145deg,#a45069,#bc657e); }
+.teacher-logout-dialog .teacher-confirm-logout:hover,.teacher-delete-dialog .teacher-confirm-delete:hover { background:linear-gradient(145deg,#923e57,#a94d68); }
 
 @media (max-width:800px) {
   #teacherApp,.teacher-prototype { background:linear-gradient(145deg,#f6f3ff,#f2f7ff 55%,#fff6f1); }

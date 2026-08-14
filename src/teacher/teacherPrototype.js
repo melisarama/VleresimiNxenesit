@@ -52,6 +52,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   let selectedAssessmentSubjectId = null;
   let assessmentContext = { chapters: [], assessments: [], finalGrades: [] };
   let notificationPreferences = null;
+  let detailBackAction = () => openFolder(selectedStudent);
 
   const panels = [...root.querySelectorAll('[data-teacher-panel]')];
   const navButtons = [...root.querySelectorAll('[data-teacher-view]')];
@@ -124,9 +125,16 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     showPanel('student-folder', false);
   }
 
+  const detailBackButton = document.getElementById('teacherDetailBack');
+
+  function setDetailBack(label, action) {
+    detailBackButton.querySelector('span').textContent = label;
+    detailBackAction = action;
+  }
+
   document.getElementById('teacherStudentSearch').addEventListener('input', event => renderStudents(event.target.value));
   document.getElementById('teacherFolderBack').addEventListener('click', () => showPanel('students'));
-  document.getElementById('teacherDetailBack').addEventListener('click', () => openFolder(selectedStudent));
+  detailBackButton.addEventListener('click', () => detailBackAction());
 
   function detailHeading(titleText, description) {
     return `<div class="teacher-detail-heading"><h2>${escapeHtml(titleText)}</h2><p>${escapeHtml(description)}</p></div>`;
@@ -164,6 +172,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   }
 
   function renderAssessmentDetail() {
+    setDetailBack('Dosja e nxënësit', () => openFolder(selectedStudent));
     const subjects = materialContext.subjects;
     if (!selectedAssessmentSubjectId || !subjects.some(subject => subject.id === selectedAssessmentSubjectId)) selectedAssessmentSubjectId = subjects[0]?.id || null;
     const chapters = assessmentContext.chapters.filter(chapter => chapter.subject_id === selectedAssessmentSubjectId);
@@ -258,6 +267,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   }
 
   function openFinalGrade() {
+    setDetailBack('Vlerësimet', renderAssessmentDetail);
     const period = academicPeriods.find(item => item.id === selectedAcademicPeriodId);
     const box = document.getElementById('teacherFolderDetail');
     const existing = assessmentContext.finalGrades.find(item => item.student_id === selectedStudent.id && item.subject_id === selectedAssessmentSubjectId && item.academic_period_id === selectedAcademicPeriodId);
@@ -292,6 +302,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     title.textContent = action === 'mood' ? 'Humori' : action === 'preferences' ? 'Preferencat' : 'Vlerësimet';
     kicker.textContent = selectedStudent.name;
     showPanel('folder-detail', false);
+    setDetailBack('Dosja e nxënësit', () => openFolder(selectedStudent));
     const detail = document.getElementById('teacherFolderDetail');
     if (action === 'mood') detail.innerHTML = renderMoodDetail();
     if (action === 'preferences') detail.innerHTML = renderPreferencesDetail();
@@ -301,6 +312,9 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   const composer = document.getElementById('teacherMaterialComposer');
   const materialStatus = document.getElementById('teacherMaterialStatus');
   const materialFiles = document.getElementById('teacherMaterialFiles');
+  const materialList = document.getElementById('teacherMaterialList');
+  const deleteMaterialDialog = document.getElementById('teacherDeleteMaterialDialog');
+  const deleteMaterialMessage = document.getElementById('teacherDeleteMaterialMessage');
 
   function materialDate(value, includeTime = false) {
     if (!value) return '';
@@ -351,11 +365,49 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     });
   }
 
+  function confirmMaterialDelete(material) {
+    deleteMaterialMessage.textContent = `Jeni të sigurt që dëshironi të fshini “${material.title}”? Ky material nuk do të jetë më i disponueshëm për prindërit.`;
+    deleteMaterialDialog.returnValue = 'cancel';
+    return new Promise(resolve => {
+      if (typeof deleteMaterialDialog.showModal === 'function') {
+        deleteMaterialDialog.addEventListener('close', () => resolve(deleteMaterialDialog.returnValue === 'confirm'), { once: true });
+        deleteMaterialDialog.showModal();
+        return;
+      }
+      deleteMaterialDialog.classList.add('fallback-open');
+      const finish = confirmed => {
+        deleteMaterialDialog.classList.remove('fallback-open');
+        resolve(confirmed);
+      };
+      deleteMaterialDialog.querySelector('[value="cancel"]').addEventListener('click', () => finish(false), { once: true });
+      deleteMaterialDialog.querySelector('[value="confirm"]').addEventListener('click', () => finish(true), { once: true });
+    });
+  }
+
+  async function handleMaterialDelete(button) {
+    const material = teacherMaterials.find(item => item.id === button.dataset.materialId);
+    if (!material) {
+      materialStatus.textContent = 'Materiali nuk u gjet. Rifreskoni listën dhe provoni përsëri.';
+      return;
+    }
+    if (!await confirmMaterialDelete(material)) return;
+    button.disabled = true;
+    materialStatus.textContent = 'Duke fshirë materialin...';
+    try {
+      await deleteTeacherMaterial(material);
+      teacherMaterials = teacherMaterials.filter(item => item.id !== material.id);
+      materialStatus.textContent = 'Materiali u fshi.';
+      renderMaterialLibrary();
+    } catch (error) {
+      button.disabled = false;
+      materialStatus.textContent = error.message || 'Materiali nuk mundi të fshihej.';
+    }
+  }
+
   function renderMaterialLibrary() {
-    const box = document.getElementById('teacherMaterialList');
-    box.innerHTML = '';
+    materialList.innerHTML = '';
     if (!teacherMaterials.length) {
-      box.innerHTML = '<p class="teacher-material-empty">Ende nuk keni publikuar materiale.</p>';
+      materialList.innerHTML = '<p class="teacher-material-empty">Ende nuk keni publikuar materiale.</p>';
       return;
     }
     teacherMaterials.forEach(material => {
@@ -365,7 +417,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       const fileType = files[0]?.mime_type === 'application/pdf' ? 'PDF' : files.length ? 'IMG' : 'TXT';
       const audience = material.audience === 'class' && material.classes ? `Klasa ${material.classes.name}` : `${recipients.length} nxënës`;
       const expiry = material.expires_at ? `Fshihet më ${materialDate(material.expires_at)}` : 'Ruhet pa afat';
-      article.innerHTML = `<div class="teacher-material-file${fileType === 'IMG' ? ' image' : ''}">${fileType}</div><div><span>${escapeHtml(material.subjects?.name || 'Lënda')} · ${escapeHtml(audience)}</span><h3>${escapeHtml(material.title)}</h3><p>${escapeHtml(material.description || 'Pa përshkrim shtesë.')}</p><small>${escapeHtml(materialDate(material.created_at, true))} · ${files.length} skedarë · ${escapeHtml(expiry)}</small><div class="teacher-material-downloads"></div></div><button type="button" aria-label="Fshi materialin" title="Fshi materialin">×</button>`;
+      article.innerHTML = `<div class="teacher-material-file${fileType === 'IMG' ? ' image' : ''}">${fileType}</div><div><span>${escapeHtml(material.subjects?.name || 'Lënda')} · ${escapeHtml(audience)}</span><h3>${escapeHtml(material.title)}</h3><p>${escapeHtml(material.description || 'Pa përshkrim shtesë.')}</p><small>${escapeHtml(materialDate(material.created_at, true))} · ${files.length} skedarë · ${escapeHtml(expiry)}</small><div class="teacher-material-downloads"></div></div><button class="teacher-material-delete" type="button" data-material-id="${escapeHtml(material.id)}" aria-label="Fshi materialin" title="Fshi materialin">×</button>`;
       const downloads = article.querySelector('.teacher-material-downloads');
       files.forEach(file => {
         const button = document.createElement('button');
@@ -384,17 +436,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
         });
         downloads.appendChild(button);
       });
-      article.querySelector(':scope > button').addEventListener('click', async () => {
-        if (!window.confirm(`A jeni të sigurt që dëshironi të fshini “${material.title}”?`)) return;
-        try {
-          await deleteTeacherMaterial(material);
-          teacherMaterials = teacherMaterials.filter(item => item.id !== material.id);
-          renderMaterialLibrary();
-        } catch (error) {
-          materialStatus.textContent = error.message;
-        }
-      });
-      box.appendChild(article);
+      materialList.appendChild(article);
     });
   }
 
@@ -428,6 +470,11 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   document.getElementById('teacherCancelMaterial').addEventListener('click', () => composer.classList.add('hidden'));
   document.getElementById('teacherMaterialAudience').addEventListener('change', updateMaterialAudience);
   materialFiles.addEventListener('change', renderSelectedMaterialFiles);
+  materialList.addEventListener('click', async event => {
+    const deleteButton = event.target.closest('.teacher-material-delete');
+    if (!deleteButton || !materialList.contains(deleteButton)) return;
+    await handleMaterialDelete(deleteButton);
+  });
   composer.addEventListener('submit', async event => {
     event.preventDefault();
     const submit = composer.querySelector('[type="submit"]');
@@ -595,6 +642,9 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   });
   logoutDialog.addEventListener('close', () => {
     if (logoutDialog.returnValue === 'confirm') onLogout?.();
+  });
+  deleteMaterialDialog.addEventListener('click', event => {
+    if (event.target === deleteMaterialDialog) deleteMaterialDialog.close('cancel');
   });
 
   renderStudents();

@@ -41,6 +41,13 @@ function configurePasswordToggle(fieldId, buttonId) {
   };
 }
 
+function authLoadStatus(loadError, fallback) {
+  const loadMessage = loadError?.message || '';
+  return loadMessage.includes('JWT issued at future')
+    ? 'Sesioni nuk u pranua sepse ora e pajisjes ose serverit nuk përputhet. Kontrolloni datën dhe orën, pastaj provoni përsëri.'
+    : fallback;
+}
+
 let activeTeacherUser = null;
 let activeTeacherStudents = [];
 let stopTeacherRealtime = null;
@@ -215,7 +222,7 @@ document.getElementById('continueTeacher').onclick = async () => {
     document.getElementById('teacherApp').classList.remove('hidden');
   } catch (loadError) {
     await supabaseClient.auth.signOut();
-    status.textContent = 'Kjo llogari nuk është e autorizuar si mësimdhënës.';
+    status.textContent = authLoadStatus(loadError, 'Kjo llogari nuk është e autorizuar si mësimdhënës.');
     console.warn('Teacher login:', loadError);
   }
 };
@@ -235,7 +242,7 @@ document.getElementById('continueParent').onclick = async () => {
     document.getElementById('parentDashboard').classList.remove('hidden');
   } catch (loadError) {
     await supabaseClient.auth.signOut();
-    status.textContent = 'Kjo llogari nuk është e autorizuar si prind.';
+    status.textContent = authLoadStatus(loadError, 'Kjo llogari nuk është e autorizuar si prind.');
     console.warn('Parent login:', loadError);
   }
 };
