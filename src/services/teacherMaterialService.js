@@ -91,28 +91,19 @@ export async function fetchTeacherMaterials(teacherId) {
 export async function publishTeacherMaterial({ teacherId, schoolId, subjectId, classId, audience, title, description, notifyInApp, retentionDays, recipientIds, preparedFiles }, onProgress = () => {}) {
   if (![90, 120].includes(retentionDays)) throw new Error('Zgjidhni ruajtjen 90 ose 120 ditë.');
   const expiresAt = new Date(Date.now() + retentionDays * 86400000).toISOString();
-  const materialId = crypto.randomUUID();
-  throwOnError(await supabaseClient
-    .from('class_materials')
-    .insert({
-      id: materialId,
-      teacher_id: teacherId,
-      school_id: schoolId,
-      subject_id: subjectId,
-      class_id: audience === 'class' ? classId : null,
-      audience,
-      title,
-      description,
-      notify_in_app: notifyInApp,
-      expires_at: expiresAt
-    }), 'Materiali nuk mundi të krijohej.');
+  const materialId = throwOnError(await supabaseClient.rpc('publish_teacher_material', {
+    target_subject: subjectId,
+    target_class: audience === 'class' ? classId : null,
+    target_audience: audience,
+    material_title: title,
+    material_description: description,
+    notify_parent: notifyInApp,
+    target_expires_at: expiresAt,
+    recipient_ids: [...new Set(recipientIds)]
+  }), 'Materiali nuk mundi të krijohej.');
 
   const uploadedPaths = [];
   try {
-    const recipients = [...new Set(recipientIds)].map(studentId => ({ material_id: materialId, student_id: studentId }));
-    if (!recipients.length) throw new Error('Zgjidhni të paktën një marrës.');
-    throwOnError(await supabaseClient.from('class_material_recipients').insert(recipients), 'Marrësit nuk mundën të ruheshin.');
-
     for (let index = 0; index < preparedFiles.length; index += 1) {
       const prepared = preparedFiles[index];
       const uploadName = `${crypto.randomUUID()}-${safeFileName(prepared.file.name)}`;
