@@ -171,3 +171,18 @@ export async function deleteTeacherNotification(notificationId) {
   const { error } = await supabaseClient.from('user_notifications').delete().eq('id', notificationId);
   if (error) throw error;
 }
+
+export async function requestTeacherSupport({ message, history = [], student = null }) {
+  const payload = {
+    message: String(message || ''),
+    history: Array.isArray(history) ? history.slice(-8).map(item => ({
+      role: item.role === 'assistant' ? 'assistant' : 'user',
+      content: String(item.content || '').trim()
+    })) : [],
+    student
+  };
+  const result = await supabaseClient.functions.invoke('support', { body: payload });
+  if (result.error) throw result.error;
+  if (result.data && result.data.error) throw new Error(result.data.error);
+  return result.data;
+}

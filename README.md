@@ -19,7 +19,7 @@ A mobile-first application for collaboration between teachers and parents in Kos
 - Continuous chapter assessment and final grades by academic period.
 - Saved email-notification preferences; delivery will be implemented later.
 - Live inbox and notification updates through Supabase Realtime without refreshing the page.
-- AI pedagogical assistant backend for immediate classroom situations; the current teacher-facing UI still needs to be connected.
+- AI pedagogical assistant for immediate classroom situations with a teacher-facing chat panel.
 
 ### For Parents
 
@@ -175,7 +175,7 @@ Remove `?dry_run=true` only when you intentionally want to send queued emails.
 
 ## Status
 
-The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow and the main teacher and parent workflows are database-backed, including assessments, materials, mood history, notifications, shared inbox conversations, and saved email preferences. Production email delivery, complete adversarial RLS testing, a refreshed fictional test dataset, and a review of children's data privacy are still required before a pilot.
+The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow and the main teacher and parent workflows are database-backed, including assessments, materials, mood history, notifications, shared inbox conversations, saved email preferences, and the teacher AI support panel. Production email delivery, complete adversarial RLS testing, a refreshed fictional test dataset, and a review of children's data privacy are still required before a pilot.
 
 ## Remaining Implementation Work
 
@@ -190,10 +190,8 @@ The project is a functional prototype, but it is not yet ready for real school d
 
 ### AI support
 
-- Connect the teacher `Mbështetja AI` screen to the existing `support` Supabase Edge Function.
-- Add the chat/input UI, quick classroom prompts, loading states, error states, and output rendering for observation, actions, observation cue, and escalation guidance.
-- Add visible guardrails telling teachers not to enter personally identifying student data into the assistant.
-- Verify the `OPENAI_API_KEY`, `OPENAI_MODEL`, `AI_PROVIDER`, and `SUPABASE_SERVICE_ROLE_KEY` secrets in Supabase before enabling the feature outside local testing.
+- Review and tune the teacher assistant prompts for more classroom scenarios before a pilot.
+- Expand the safety and escalation guidance if the UNICEF/KEC review asks for different wording or crisis handling steps.
 
 ### Security and privacy
 

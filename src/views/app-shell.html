@@ -358,7 +358,27 @@
         </section>
 
         <section class="teacher-prototype-view" data-teacher-panel="support">
-          <div class="teacher-support-placeholder"><span>✦</span><p>Mbështetja AI</p><h2>Asistenti pedagogjik po vjen së shpejti</h2><p>Kjo hapësirë do të ndihmojë me strategji praktike në klasë, bazuar në nevojat dhe preferencat e nxënësit.</p><button type="button" disabled>Joaktive në këtë prototip</button></div>
+          <div class="teacher-support-shell">
+            <div class="teacher-section-heading">
+              <div><p>Mbështetje praktike</p><h2>Mbështetja AI</h2></div>
+              <button class="teacher-support-clear" type="button" id="teacherSupportClear">Pastro bisedën</button>
+            </div>
+            <p class="teacher-support-note">Përdorni këtë si një ndihmës të shpejtë për qetësim, vëzhgim dhe komunikim të sigurt. Mos shkruani të dhëna identifikuese që nuk janë të nevojshme.</p>
+            <div class="teacher-support-context">
+              <label>Nxënësi<select id="teacherSupportStudentSelect"></select></label>
+              <div class="teacher-support-context-cards" id="teacherSupportContextCards"></div>
+            </div>
+            <div class="teacher-support-chat" id="teacherSupportChat" aria-live="polite"></div>
+            <form class="teacher-support-compose" id="teacherSupportForm">
+              <label class="sr-only" for="teacherSupportInput">Përshkruani situatën</label>
+              <textarea id="teacherSupportInput" rows="4" maxlength="2000" placeholder="Përshkruani shkurt situatën në klasë..."></textarea>
+              <div class="teacher-support-compose-row">
+                <p class="teacher-support-status" id="teacherSupportStatus" aria-live="polite"></p>
+                <button class="teacher-primary-button" type="submit" id="teacherSupportSubmit">Dërgo</button>
+              </div>
+              <div class="teacher-support-quick" id="teacherSupportQuick"></div>
+            </form>
+          </div>
         </section>
 
         <section class="teacher-prototype-view" data-teacher-panel="settings">

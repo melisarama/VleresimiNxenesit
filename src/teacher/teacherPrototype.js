@@ -12,6 +12,7 @@ import {
   createTeacherChapter,
   markTeacherNotificationRead,
   markTeacherThreadRead,
+  requestTeacherSupport,
   saveChapterAssessment,
   saveTeacherFinalGrade,
   saveTeacherNotificationPreferences,
@@ -52,6 +53,9 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   let selectedAssessmentSubjectId = null;
   let assessmentContext = { chapters: [], assessments: [], finalGrades: [] };
   let notificationPreferences = null;
+  let supportOwnerId = null;
+  let supportStudentId = null;
+  let supportSessions = Object.create(null);
   let detailBackAction = () => openFolder(selectedStudent);
 
   const panels = [...root.querySelectorAll('[data-teacher-panel]')];
@@ -68,6 +72,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       kicker.textContent = titles[name][0];
       title.textContent = titles[name][1];
     }
+    if (name === 'support') renderSupportPanel();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -157,6 +162,170 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     const hasProfile = selectedStudent.supportSummary || selectedStudent.accessibilityInformation || selectedStudent.preferredMode || selectedStudent.learningPreferences?.length || selectedStudent.communicationLanguage || selectedStudent.communicationMethod;
     if (!hasProfile) return `${heading}<div class="teacher-detail-empty"><strong>Pa preferenca të raportuara</strong><p>Ky seksion do të plotësohet pasi familja të japë informacionin përkatës.</p></div>`;
     return `${heading}<div class="teacher-preference-grid">${selectedStudent.learningPreferences?.length ? `<article><span>Preferencat e të nxënit</span><p>${escapeHtml(selectedStudent.learningPreferences.join(', '))}</p></article>` : ''}${selectedStudent.communicationLanguage ? `<article><span>Gjuha e komunikimit</span><p>${escapeHtml(selectedStudent.communicationLanguage)}</p></article>` : ''}${selectedStudent.communicationMethod ? `<article><span>Mënyra e komunikimit</span><p>${escapeHtml(selectedStudent.communicationMethod)}</p></article>` : ''}${selectedStudent.supportSummary ? `<article><span>Përmbledhja</span><p>${escapeHtml(selectedStudent.supportSummary)}</p></article>` : ''}${selectedStudent.preferredMode ? `<article><span>Mënyra e preferuar</span><p>${escapeHtml(selectedStudent.preferredMode)}</p></article>` : ''}${selectedStudent.accessibilityInformation ? `<article><span>Qasshmëria</span><p>${escapeHtml(selectedStudent.accessibilityInformation)}</p></article>` : ''}</div>`;
+  }
+
+  const supportQuickPrompts = [
+    'Nxënësi është i shqetësuar dhe nuk po pranon të qetësohet.',
+    'Nxënësi po refuzon detyrën dhe po shpërqendron klasën.',
+    'Më jep 3 hapa të sigurt për një situatë të tensionuar në klasë.',
+    'Si ta mbështes komunikimin pa e turpëruar nxënësin?'
+  ];
+
+  function supportKey(student) {
+    return student?.id || 'general';
+  }
+
+  function currentSupportStudent() {
+    return students.find(student => student.id === supportStudentId) || selectedStudent || students[0] || null;
+  }
+
+  function getSupportSession(student = currentSupportStudent()) {
+    const key = supportKey(student);
+    if (!supportSessions[key]) {
+      supportSessions[key] = { messages: [], draft: '', pending: false, error: '' };
+    }
+    return supportSessions[key];
+  }
+
+  function supportStudentSummary(student) {
+    if (!student) return [];
+    const rows = [
+      student.className ? `Klasa ${student.className}` : '',
+      student.supportSummary ? student.supportSummary : '',
+      student.preferredMode ? `Mënyra e preferuar: ${student.preferredMode}` : '',
+      student.communicationLanguage ? `Gjuha: ${student.communicationLanguage}` : '',
+      student.communicationMethod ? `Komunikimi: ${student.communicationMethod}` : ''
+    ].filter(Boolean);
+    if (student.learningPreferences?.length) rows.push(`Preferencat: ${student.learningPreferences.join(', ')}`);
+    if (student.accessibilityInformation) rows.push(`Qasshmëria: ${student.accessibilityInformation}`);
+    return rows;
+  }
+
+  function supportConversationText(message) {
+    const lines = [];
+    if (message.answer) lines.push(message.answer);
+    if (Array.isArray(message.actions) && message.actions.length) lines.push(`Hapat: ${message.actions.join(' ')}`);
+    if (message.observationCue) lines.push(`Vëzhgimi: ${message.observationCue}`);
+    if (message.escalation) lines.push(`Eskalim: ${message.escalation}`);
+    return lines.join('\n\n');
+  }
+
+  function renderSupportMessage(message) {
+    if (message.role === 'assistant') {
+      const actions = Array.isArray(message.data?.actions) ? message.data.actions : [];
+      const details = [];
+      if (actions.length) {
+        details.push(`<article class="teacher-support-card"><strong>Hapat e sugjeruar</strong><ul>${actions.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></article>`);
+      }
+      if (message.data?.observationCue) {
+        details.push(`<article class="teacher-support-card"><strong>Çfarë të vëzhgoni</strong><p>${escapeHtml(message.data.observationCue)}</p></article>`);
+      }
+      if (message.data?.escalation) {
+        details.push(`<article class="teacher-support-card danger"><strong>Kur të eskaloni</strong><p>${escapeHtml(message.data.escalation)}</p></article>`);
+      }
+      return `<article class="teacher-support-message assistant"><div class="teacher-support-bubble"><p>${escapeHtml(message.data?.answer || message.content || '')}</p></div>${details.length ? `<div class="teacher-support-details">${details.join('')}</div>` : ''}</article>`;
+    }
+    return `<article class="teacher-support-message user"><div class="teacher-support-bubble"><p>${escapeHtml(message.content || '')}</p></div></article>`;
+  }
+
+  function renderSupportPanel() {
+    const student = currentSupportStudent();
+    const session = getSupportSession(student);
+    const select = document.getElementById('teacherSupportStudentSelect');
+    const cards = document.getElementById('teacherSupportContextCards');
+    const chat = document.getElementById('teacherSupportChat');
+    const input = document.getElementById('teacherSupportInput');
+    const status = document.getElementById('teacherSupportStatus');
+    const submit = document.getElementById('teacherSupportSubmit');
+    const quick = document.getElementById('teacherSupportQuick');
+    if (select) {
+      select.innerHTML = students.map(item => `<option value="${escapeHtml(item.id)}"${item.id === student?.id ? ' selected' : ''}>${escapeHtml(item.name)}${item.className ? ` · ${escapeHtml(item.className)}` : ''}</option>`).join('');
+    }
+    if (cards) {
+      const summary = supportStudentSummary(student);
+      cards.innerHTML = summary.length
+        ? summary.slice(0, 4).map(item => `<article><span>Konteksti</span><p>${escapeHtml(item)}</p></article>`).join('')
+        : '<div class="teacher-support-context-empty">Zgjidhni një nxënës për ta personalizuar këshillën.</div>';
+    }
+    if (chat) {
+      chat.innerHTML = session.messages.length
+        ? session.messages.map(renderSupportMessage).join('')
+        : '<div class="teacher-support-empty"><strong>Filloni me një situatë të shkurtër</strong><p>Do t’ju jap hapa të sigurt, të qetë dhe praktikë për klasë.</p></div>';
+      chat.scrollTop = chat.scrollHeight;
+    }
+    if (input) {
+      if (document.activeElement !== input) input.value = session.draft || '';
+      input.disabled = session.pending;
+    }
+    if (status) {
+      status.textContent = session.error || (session.pending ? 'Duke menduar…' : '');
+    }
+    if (submit) {
+      submit.disabled = session.pending || !(session.draft || '').trim();
+    }
+    if (quick) {
+      quick.innerHTML = supportQuickPrompts.map(prompt => `<button type="button">${escapeHtml(prompt)}</button>`).join('');
+      quick.querySelectorAll('button').forEach(button => button.addEventListener('click', () => {
+        const targetInput = document.getElementById('teacherSupportInput');
+        const activeStudent = currentSupportStudent();
+        const activeSession = getSupportSession(activeStudent);
+        activeSession.draft = button.textContent;
+        if (targetInput) targetInput.value = button.textContent;
+        renderSupportPanel();
+        targetInput?.focus();
+      }));
+    }
+  }
+
+  async function submitSupportMessage(event) {
+    event.preventDefault();
+    const student = currentSupportStudent();
+    const session = getSupportSession(student);
+    const input = document.getElementById('teacherSupportInput');
+    const message = (session.draft || input?.value || '').trim();
+    if (!message) return;
+    session.error = '';
+    session.pending = true;
+    session.draft = message;
+    session.messages.push({ role: 'user', content: message });
+    renderSupportPanel();
+    try {
+      const priorHistory = session.messages.slice(0, -1).slice(-8);
+      const response = await requestTeacherSupport({
+        message,
+        history: priorHistory.map(item => ({
+          role: item.role,
+          content: item.role === 'assistant' ? supportConversationText(item.data || item) : item.content
+        })),
+        student: student ? {
+          id: student.id,
+          name: student.name,
+          className: student.className || '',
+          supportSummary: student.supportSummary || '',
+          preferredMode: student.preferredMode || '',
+          learningPreferences: student.learningPreferences || [],
+          communicationLanguage: student.communicationLanguage || '',
+          communicationMethod: student.communicationMethod || '',
+          accessibilityInformation: student.accessibilityInformation || ''
+        } : null
+      });
+      session.messages.push({
+        role: 'assistant',
+        content: response.answer || '',
+        data: {
+          answer: response.answer || '',
+          actions: Array.isArray(response.actions) ? response.actions.slice(0, 3) : [],
+          observationCue: response.observationCue || '',
+          escalation: response.escalation || ''
+        }
+      });
+      session.draft = '';
+    } catch (error) {
+      session.error = error.message || 'Mbështetja AI nuk u përgjigj.';
+    } finally {
+      session.pending = false;
+      renderSupportPanel();
+    }
   }
 
   function formatInboxTime(value) {
@@ -611,6 +780,35 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     renderMessages();
   });
 
+  document.getElementById('teacherSupportStudentSelect').addEventListener('change', event => {
+    supportStudentId = event.currentTarget.value || null;
+    const session = getSupportSession();
+    session.error = '';
+    renderSupportPanel();
+  });
+
+  document.getElementById('teacherSupportInput').addEventListener('input', event => {
+    const student = currentSupportStudent();
+    const session = getSupportSession(student);
+    session.draft = event.currentTarget.value;
+    session.error = '';
+    const submit = document.getElementById('teacherSupportSubmit');
+    if (submit) submit.disabled = session.pending || !session.draft.trim();
+    const status = document.getElementById('teacherSupportStatus');
+    if (status && !session.pending) status.textContent = '';
+  });
+
+  document.getElementById('teacherSupportForm').addEventListener('submit', submitSupportMessage);
+  document.getElementById('teacherSupportClear').addEventListener('click', () => {
+    const student = currentSupportStudent();
+    const session = getSupportSession(student);
+    session.messages = [];
+    session.draft = '';
+    session.error = '';
+    renderSupportPanel();
+    document.getElementById('teacherSupportInput')?.focus();
+  });
+
   document.getElementById('teacherSaveSettings').addEventListener('click', async event => {
     const email = document.getElementById('teacherNotificationEmail').value.trim();
     const parentMessageEmails = document.getElementById('teacherParentMessageEmails').checked;
@@ -649,9 +847,15 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
 
   renderStudents();
   renderMessages();
+  renderSupportPanel();
 
   return {
     setData({ teacherName, teacherEmail = '', teacherId, schoolId, subjects = [], academicPeriods: nextPeriods = [], students: nextStudents = [], moods = {}, moodHistories: nextMoodHistories = {}, messages: nextMessages = [], chapters = [], assessments = [], finalGrades = [], preferences = null } = {}) {
+      if (teacherId && teacherId !== supportOwnerId) {
+        supportOwnerId = teacherId;
+        supportStudentId = null;
+        supportSessions = Object.create(null);
+      }
       if (teacherName) {
         root.querySelectorAll('[data-teacher-name]').forEach(element => { element.textContent = teacherName; });
         const avatar = initials(teacherName);
@@ -674,6 +878,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       activeMessageId = null;
       renderMessages();
       renderMaterialFormOptions();
+      renderSupportPanel();
       loadMaterialLibrary();
     },
     setMessages(nextMessages = []) {
