@@ -10,8 +10,11 @@ import {
   archiveTeacherThread,
   deleteTeacherNotification,
   createTeacherChapter,
+  getTeacherAISupport,
   markTeacherNotificationRead,
+  markTeacherNotificationUnread,
   markTeacherThreadRead,
+  markTeacherThreadUnread,
   saveChapterAssessment,
   saveTeacherFinalGrade,
   saveTeacherNotificationPreferences,
@@ -546,18 +549,25 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     renderMessages();
     const detail = document.getElementById('teacherMessageDetail');
     const conversation = message.type === 'thread' ? message.messages.map(item => `<p class="teacher-saved-reply${item.sender_id === materialContext.teacherId ? ' teacher-own-message' : ''}"><strong>${item.sender_id === materialContext.teacherId ? 'Ju' : 'Prindi'}</strong>${escapeHtml(item.body)}<time>${escapeHtml(new Intl.DateTimeFormat('sq-AL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.created_at)))}</time></p>`).join('') : `<p>${escapeHtml(message.body)}</p>`;
-    detail.innerHTML = `<button class="teacher-back-button teacher-message-mobile-back" type="button">← Kthehu</button><div class="teacher-message-heading"><div class="teacher-message-heading-row"><div><h2>${escapeHtml(message.subject)}</h2><p>${escapeHtml(message.parent)} · ${escapeHtml(message.student)}${message.context ? ` · ${escapeHtml(message.context)}` : ''}</p></div><div class="teacher-message-actions">${message.unread ? '<button type="button" data-message-action="read">Shëno si të lexuar</button>' : '<span>Mesazh i lexuar</span>'}<button class="danger" type="button" data-message-action="delete">Fshi</button></div></div><p class="teacher-message-action-status" aria-live="polite"></p></div><div class="teacher-message-body">${conversation}</div>${message.type === 'thread' ? '<form class="teacher-reply-box"><label class="sr-only" for="teacherReplyText">Përgjigjja</label><textarea id="teacherReplyText" maxlength="2000" placeholder="Shkruani përgjigjen..."></textarea><p class="teacher-message-action-status" aria-live="polite"></p><div><button class="teacher-primary-button" type="submit">Dërgo përgjigjen</button></div></form>' : ''}`;
+    detail.innerHTML = `<button class="teacher-back-button teacher-message-mobile-back" type="button">← Kthehu</button><div class="teacher-message-heading"><div class="teacher-message-heading-row"><div><h2>${escapeHtml(message.subject)}</h2><p>${escapeHtml(message.parent)} · ${escapeHtml(message.student)}${message.context ? ` · ${escapeHtml(message.context)}` : ''}</p></div><div class="teacher-message-actions"><button type="button" data-message-action="toggle-read" data-action="${message.unread ? 'read' : 'unread'}">${message.unread ? 'Shëno si të lexuar' : 'Shëno si të palexuar'}</button><button class="danger" type="button" data-message-action="delete">Fshi</button></div></div><p class="teacher-message-action-status" aria-live="polite"></p></div><div class="teacher-message-body">${conversation}</div>${message.type === 'thread' ? '<form class="teacher-reply-box"><label class="sr-only" for="teacherReplyText">Përgjigjja</label><textarea id="teacherReplyText" maxlength="2000" placeholder="Shkruani përgjigjen..."></textarea><p class="teacher-message-action-status" aria-live="polite"></p><div><button class="teacher-primary-button" type="submit">Dërgo përgjigjen</button></div></form>' : ''}`;
     detail.classList.add('mobile-open');
     detail.querySelector('.teacher-message-mobile-back').addEventListener('click', () => detail.classList.remove('mobile-open'));
-    detail.querySelector('[data-message-action="read"]')?.addEventListener('click', async event => {
+    detail.querySelector('[data-message-action="toggle-read"]')?.addEventListener('click', async event => {
       const button = event.currentTarget;
+      const action = button.dataset.action;
       const status = detail.querySelector('.teacher-message-action-status');
       button.disabled = true;
-      status.textContent = 'Duke e shënuar si të lexuar…';
+      status.textContent = action === 'unread' ? 'Duke e shënuar si të palexuar…' : 'Duke e shënuar si të lexuar…';
       try {
-        if (message.type === 'thread') await markTeacherThreadRead(message.id);
-        else await markTeacherNotificationRead(message.id);
-        message.unread = false;
+        if (action === 'unread') {
+          if (message.type === 'thread') await markTeacherThreadUnread(message.id);
+          else await markTeacherNotificationUnread(message.id);
+          message.unread = true;
+        } else {
+          if (message.type === 'thread') await markTeacherThreadRead(message.id);
+          else await markTeacherNotificationRead(message.id);
+          message.unread = false;
+        }
         renderMessages();
         openMessage(message);
       } catch (error) {
@@ -610,6 +620,55 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     event.currentTarget.textContent = unreadOnly ? 'Shfaq të gjitha' : 'Vetëm të palexuarat';
     renderMessages();
   });
+
+  root.querySelectorAll('[data-suggest-prompt]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const input = document.getElementById('teacherSupportInput');
+      if (input) {
+        input.value = chip.dataset.suggestPrompt;
+        input.focus();
+      }
+    });
+  });
+
+  const supportForm = document.getElementById('teacherSupportForm');
+  if (supportForm) {
+    supportForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const input = document.getElementById('teacherSupportInput');
+      const submitBtn = document.getElementById('teacherSupportSubmit');
+      const status = document.getElementById('teacherSupportStatus');
+      const responseBox = document.getElementById('teacherSupportResponse');
+      const situation = input.value.trim();
+      if (!situation) return;
+
+      submitBtn.disabled = true;
+      status.textContent = 'Duke gjeneruar këshillën pedagogjike (Gemini AI)…';
+      responseBox.classList.add('hidden');
+
+      try {
+        const result = await getTeacherAISupport(situation);
+        document.getElementById('teacherSupportObservation').textContent = result.observation || '';
+        document.getElementById('teacherSupportActions').innerHTML = (result.actions || []).map(action => `<li>${escapeHtml(action)}</li>`).join('');
+        document.getElementById('teacherSupportObservationCue').textContent = result.observationCue || '';
+
+        const escalationCard = document.getElementById('teacherSupportEscalationCard');
+        if (result.escalation) {
+          document.getElementById('teacherSupportEscalation').textContent = result.escalation;
+          escalationCard.classList.remove('hidden');
+        } else {
+          escalationCard.classList.add('hidden');
+        }
+
+        responseBox.classList.remove('hidden');
+        status.textContent = '';
+      } catch (error) {
+        status.textContent = error.message || 'Asistenti nuk mundi të përgjigjet tani. Provoni përsëri.';
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  }
 
   document.getElementById('teacherSaveSettings').addEventListener('click', async event => {
     const email = document.getElementById('teacherNotificationEmail').value.trim();

@@ -310,15 +310,47 @@ function openClassDialog(schoolClass = null) {
   }));
 }
 
+function generatePassword() {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const special = '!@#$%&*';
+  const all = upper + lower + digits + special;
+  const rand = (chars) => chars[Math.floor(Math.random() * chars.length)];
+  // Guarantee at least one of each category, then fill to 12 chars
+  const required = [rand(upper), rand(lower), rand(digits), rand(special)];
+  const extra = Array.from({ length: 8 }, () => rand(all));
+  return [...required, ...extra].sort(() => Math.random() - 0.5).join('');
+}
+
 function openInviteDialog(role) {
   const label = role === 'teacher' ? 'mësimdhënësin' : 'prindin';
-  openAdminDialog(`Fto ${label}`, `
+  const generatedPassword = generatePassword();
+  openAdminDialog(`Shto ${label}`, `
     <label>Emri<input name="firstName" required maxlength="80"></label>
     <label>Mbiemri<input name="lastName" required maxlength="80"></label>
     <label>Email<input name="email" type="email" required autocomplete="email"></label>
-    <p class="admin-form-note">Përdoruesi do të marrë email për të vendosur fjalëkalimin. Llogaria lidhet automatikisht me këtë shkollë.</p>
-  `, 'Dërgo ftesën', async form => {
-    await inviteSchoolMember({ role, firstName: form.get('firstName'), lastName: form.get('lastName'), email: form.get('email') });
+    <label>Fjalëkalimi i gjeneruar
+      <div style="display:flex;gap:6px;align-items:center">
+        <input name="password" type="text" readonly value="${generatedPassword}" style="font-family:monospace;font-size:0.85em;letter-spacing:0.05em;flex:1">
+        <button type="button" style="white-space:nowrap;padding:0 10px" onclick="const p=generatePassword();this.closest('label').querySelector('input').value=p;this.closest('form').querySelector('[data-gen-pw]').value=p">↺ Rigjeneroj</button>
+      </div>
+    </label>
+    <input type="hidden" name="generatedPassword" data-gen-pw value="${generatedPassword}">
+    <p class="admin-form-note">Llogaria krijohet menjëherë. Fjalëkalimi shfaqet në console të shfletuesit dhe do të dërgohet me email (funksionalitet i ardhshëm).</p>
+  `, 'Krijo llogarinë', async form => {
+    const firstName = form.get('firstName');
+    const lastName = form.get('lastName');
+    const email = form.get('email');
+    const password = form.get('generatedPassword') || form.get('password') || generatedPassword;
+    await inviteSchoolMember({ role, firstName, lastName, email });
+    // TODO: Replace console.log with email dispatch once email service is connected
+    console.log(`%c[LLOGARIA E RE] ${role.toUpperCase()}`, 'color:#22c55e;font-weight:bold;font-size:14px');
+    console.log(`Emri: ${firstName} ${lastName}`);
+    console.log(`Email: ${email}`);
+    console.log(`Fjalëkalimi: ${password}`);
+    console.log(`Roli: ${role}`);
+    console.log('---');
   });
 }
 

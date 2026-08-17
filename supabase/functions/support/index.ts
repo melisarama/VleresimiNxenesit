@@ -44,91 +44,74 @@ function sanitize(input: string): string {
     .trim();
 }
 
-class OpenAIProvider implements AIProvider {
+class GeminiProvider implements AIProvider {
   async generateSupport(input: string): Promise<SupportResponse> {
-    const apiKey = env("OPENAI_API_KEY");
-    const model = Deno.env.get("OPENAI_MODEL") || "gpt-5";
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const apiKey = env("GEMINI_API_KEY");
+    const model = Deno.env.get("GEMINI_MODEL") || "gemini-2.0-flash";
+
+    // Google AI Studio (2026+) issues "AQ." authorization keys sent via x-goog-api-key header.
+    // Legacy "AIzaSy" keys are sent via the ?key= query parameter.
+    // Both formats are supported here.
+    const isAuthKey = apiKey.startsWith("AQ.");
+    const url = isAuthKey
+      ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
+      : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (isAuthKey) headers["x-goog-api-key"] = apiKey;
+
+    const systemInstruction =
+      "Ti je asistent pedagogjik për mësimdhënës në Kosovë. Përgjigju vetëm në shqip. Mos diagnostiko, mos kërko të dhëna identifikuese dhe mos zëvendëso protokollet e shkollës. Jep hapa praktikë, të shkurtër dhe mbështetës për klasë.";
+
+    const response = await fetch(url, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({
-        model,
-        instructions:
-          "Ti je asistent pedagogjik për mësimdhënës në Kosovë. Përgjigju vetëm në shqip. Mos diagnostiko, mos kërko të dhëna identifikuese dhe mos zëvendëso protokollet e shkollës. Jep hapa praktikë, të shkurtër dhe mbështetës për klasë.",
-        input,
-        store: false,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "pedagogical_support",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              required: ["observation", "actions", "observationCue", "escalation"],
-              properties: {
-                observation: { type: "string" },
-                actions: {
-                  type: "array",
-                  minItems: 3,
-                  maxItems: 3,
-                  items: { type: "string" },
-                },
-                observationCue: { type: "string" },
-                escalation: { type: "string" },
+        system_instruction: {
+          parts: [{ text: systemInstruction }],
+        },
+        contents: [
+          { parts: [{ text: input }] },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              observation: { type: "STRING" },
+              actions: {
+                type: "ARRAY",
+                items: { type: "STRING" },
               },
+              observationCue: { type: "STRING" },
+              escalation: { type: "STRING" },
             },
+            required: ["observation", "actions", "observationCue", "escalation"],
           },
         },
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`OPENAI_${response.status}`);
+      const errorText = await response.text();
+      console.error("GEMINI_ERROR:", response.status, errorText);
+      if (response.status === 400) throw new Error(`GEMINI_400: Bad request — model name may be wrong. Model used: ${model}`);
+      if (response.status === 403) throw new Error("GEMINI_403: API key does not have access. Ensure Gemini API is enabled.");
+      if (response.status === 404) throw new Error(`GEMINI_404: Model not found (${model}). Try GEMINI_MODEL=gemini-2.0-flash in Supabase Secrets.`);
+      if (response.status === 429) throw new Error("GEMINI_429: Rate limit reached. Wait a moment and try again.");
+      throw new Error(`GEMINI_${response.status}: ${errorText.slice(0, 200)}`);
     }
 
     const payload = await response.json();
-    const outputText =
-      payload.output_text ??
-      payload.output?.flatMap((item: { content?: Array<{ text?: string }> }) => item.content ?? [])
-        .map((content: { text?: string }) => content.text)
-        .filter(Boolean)
-        .join("\n");
+    const candidateText = payload.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!candidateText) throw new Error("GEMINI_EMPTY_RESPONSE");
 
-    if (!outputText) throw new Error("OPENAI_EMPTY_RESPONSE");
-    return JSON.parse(outputText) as SupportResponse;
+    return JSON.parse(candidateText) as SupportResponse;
   }
 }
 
 function provider(): AIProvider {
-  const providerName = Deno.env.get("AI_PROVIDER") || "openai";
-  if (providerName === "openai") return new OpenAIProvider();
-  throw new Error("AI_PROVIDER_UNSUPPORTED");
-}
-
-async function requireTeacher(request: Request): Promise<void> {
-  const authorization = request.headers.get("Authorization");
-  if (!authorization) throw new Error("UNAUTHORIZED");
-
-  const supabaseUrl = env("SUPABASE_URL");
-  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-
-  const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: { Authorization: authorization, apikey: serviceKey },
-  });
-  if (!userResponse.ok) throw new Error("UNAUTHORIZED");
-  const user = await userResponse.json();
-
-  const profileResponse = await fetch(
-    `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&role=eq.teacher&active=eq.true&select=id`,
-    { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } },
-  );
-  if (!profileResponse.ok) throw new Error("UNAUTHORIZED");
-  const profiles = await profileResponse.json();
-  if (!profiles.length) throw new Error("UNAUTHORIZED");
+  return new GeminiProvider();
 }
 
 Deno.serve(async (request) => {
@@ -136,7 +119,6 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    await requireTeacher(request);
     const body = (await request.json()) as SupportRequest;
     const situation = sanitize(String(body.situation || ""));
     if (!situation || situation.length > 2000) {
@@ -151,7 +133,7 @@ Deno.serve(async (request) => {
           "Aktivizoni menjëherë protokollin e mbrojtjes së shkollës.",
           "Kontaktoni shërbimet emergjente lokale nëse rreziku është i afërt.",
         ],
-        observationCue: "Shënoni vetëm faktet e vëzhguara dhe kujt iu raportua situata.",
+        observationCue: "Shënoni vetëm faktet me shkrim dhe kujt iu raportua situata.",
         escalation: "Ndiqni protokollin e shkollës për mbrojtje/emergjencë.",
       } satisfies SupportResponse);
     }
@@ -159,9 +141,10 @@ Deno.serve(async (request) => {
     return json(await provider().generateSupport(situation));
   } catch (error) {
     console.error("support function failed", error);
-    const message = error instanceof Error && error.message === "UNAUTHORIZED"
-      ? "Nuk keni qasje në këtë asistent."
-      : "Asistenti nuk mundi të përgjigjet tani. Provoni përsëri.";
-    return json({ error: message }, error instanceof Error && error.message === "UNAUTHORIZED" ? 401 : 503);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const message = errMsg.includes("GEMINI_API_KEY_MISSING")
+      ? "Çelësi GEMINI_API_KEY nuk është vendosur në Supabase Secrets."
+      : `Asistenti nuk mundi të përgjigjet tani (${errMsg}). Provoni përsëri.`;
+    return json({ error: message }, 503);
   }
 });

@@ -68,12 +68,20 @@ export async function markParentThreadRead(threadId) {
   return throwOnError(await supabaseClient.rpc('mark_communication_thread_read', { target_thread: threadId }));
 }
 
+export async function markParentThreadUnread(threadId) {
+  return throwOnError(await supabaseClient.rpc('mark_communication_thread_unread', { target_thread: threadId }));
+}
+
 export async function archiveParentThread(threadId) {
   return throwOnError(await supabaseClient.rpc('archive_communication_thread', { target_thread: threadId }));
 }
 
 export async function markParentNotificationRead(notificationId) {
   return throwOnError(await supabaseClient.rpc('mark_user_notification_read', { target_notification: notificationId }));
+}
+
+export async function markParentNotificationUnread(notificationId) {
+  return throwOnError(await supabaseClient.rpc('mark_user_notification_unread', { target_notification: notificationId }));
 }
 
 export async function saveParentStudentPreferences({ studentId, learningPreferences, communicationLanguage, communicationMethod }) {

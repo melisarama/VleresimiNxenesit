@@ -157,6 +157,11 @@ export async function markTeacherThreadRead(threadId) {
   if (error) throw error;
 }
 
+export async function markTeacherThreadUnread(threadId) {
+  const { error } = await supabaseClient.rpc('mark_communication_thread_unread', { target_thread: threadId });
+  if (error) throw error;
+}
+
 export async function archiveTeacherThread(threadId) {
   const { error } = await supabaseClient.rpc('archive_communication_thread', { target_thread: threadId });
   if (error) throw error;
@@ -167,7 +172,30 @@ export async function markTeacherNotificationRead(notificationId) {
   if (error) throw error;
 }
 
+export async function markTeacherNotificationUnread(notificationId) {
+  const { error } = await supabaseClient.rpc('mark_user_notification_unread', { target_notification: notificationId });
+  if (error) throw error;
+}
+
 export async function deleteTeacherNotification(notificationId) {
   const { error } = await supabaseClient.from('user_notifications').delete().eq('id', notificationId);
   if (error) throw error;
+}
+
+export async function getTeacherAISupport(situation) {
+  const { data, error } = await supabaseClient.functions.invoke('support', {
+    body: { situation }
+  });
+  if (error) {
+    let msg = error.message || 'Ndodhi një gabim me asistentin AI.';
+    if (error.context && typeof error.context.json === 'function') {
+      try {
+        const body = await error.context.json();
+        if (body?.error) msg = body.error;
+      } catch (e) { /* ignore */ }
+    }
+    throw new Error(msg);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
 }

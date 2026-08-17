@@ -5,7 +5,9 @@ import {
   fetchParentChildren,
   fetchParentWorkspaceData,
   markParentNotificationRead,
+  markParentNotificationUnread,
   markParentThreadRead,
+  markParentThreadUnread,
   saveParentDailyMood,
   saveParentNotificationPreferences,
   saveParentStudentPreferences,
@@ -188,27 +190,56 @@ export function initializeParentWorkflow({ onLogout } = {}) {
       openThread(threadId);
     });
     renderThreads();
-    updateNotificationCounts();
-  }
-
-  function updateNotificationCounts() {
-    const unread = workspace.notifications.filter(item => !item.read_at).length;
-    root.querySelectorAll('[data-parent-notification-count]').forEach(badge => {
-      badge.textContent = String(unread);
-      badge.hidden = unread === 0;
-    });
   }
 
   function renderNotifications() {
     const box = document.getElementById('parentNotificationList');
-    box.innerHTML = workspace.notifications.length ? workspace.notifications.map(item => `<article class="parent-notification-row${item.read_at ? '' : ' unread'}"><span>${notificationIcon(item.kind)}</span><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.body)}</p></div><time>${escapeHtml(formatDate(item.created_at, true))}</time>${item.read_at ? '' : `<button type="button" data-notification-id="${item.id}">Shëno si të lexuar</button>`}</article>`).join('') : '<div class="parent-empty-state"><strong>Pa njoftime</strong><p>Nuk ka përditësime të reja.</p></div>';
-    box.querySelectorAll('[data-notification-id]').forEach(button => button.addEventListener('click', async () => {
-      await markParentNotificationRead(button.dataset.notificationId);
-      const item = workspace.notifications.find(row => row.id === button.dataset.notificationId);
-      if (item) item.read_at = new Date().toISOString();
-      renderNotifications();
-      updateNotificationCounts();
-    }));
+    box.innerHTML = workspace.notifications.length ? workspace.notifications.map(item => `
+      <article class="parent-notification-row${item.read_at ? '' : ' unread'}" data-notification-row="${item.id}">
+        <span>${notificationIcon(item.kind)}</span>
+        <div>
+          <strong>${escapeHtml(item.title)}</strong>
+          <p>${escapeHtml(item.body)}</p>
+        </div>
+        <time>${escapeHtml(formatDate(item.created_at, true))}</time>
+        <button type="button" data-notification-toggle="${item.id}" data-action="${item.read_at ? 'unread' : 'read'}">${item.read_at ? 'Shëno si të palexuar' : 'Shëno si të lexuar'}</button>
+      </article>`).join('') : '<div class="parent-empty-state"><strong>Pa njoftime</strong><p>Nuk ka përditësime të reja.</p></div>';
+
+    box.querySelectorAll('[data-notification-row]').forEach(row => {
+      row.addEventListener('click', (event) => {
+        if (event.target.closest('[data-notification-toggle]')) return;
+        const item = workspace.notifications.find(r => r.id === row.dataset.notificationRow);
+        if (!item) return;
+        if (item.kind === 'message' && item.entity_id) {
+          showView('messages');
+          openThread(item.entity_id);
+        }
+      });
+    });
+
+    box.querySelectorAll('[data-notification-toggle]').forEach(button => {
+      button.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        const notificationId = button.dataset.notificationToggle;
+        const action = button.dataset.action;
+        const item = workspace.notifications.find(r => r.id === notificationId);
+        if (!item) return;
+        button.disabled = true;
+        try {
+          if (action === 'unread') {
+            await markParentNotificationUnread(notificationId);
+            item.read_at = null;
+          } else {
+            await markParentNotificationRead(notificationId);
+            item.read_at = new Date().toISOString();
+          }
+        } catch (e) {
+          console.error('Failed to toggle notification status:', e);
+        } finally {
+          renderNotifications();
+        }
+      });
+    });
   }
 
   function renderProfile() {

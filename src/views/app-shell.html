@@ -145,7 +145,7 @@
         <button type="button" data-parent-view="progress"><span>✓</span>Progresi</button>
         <button type="button" data-parent-view="materials"><span>▤</span>Materialet</button>
         <button type="button" data-parent-view="messages"><span>◇</span>Mesazhet</button>
-        <button type="button" data-parent-view="notifications"><span>●</span>Njoftimet <b data-parent-notification-count hidden>0</b></button>
+        <button type="button" data-parent-view="notifications"><span>●</span>Njoftimet</button>
         <button type="button" data-parent-view="profile"><span>⚙</span>Profili</button>
       </nav>
       <div class="parent-account-summary"><span id="parentSidebarAvatar">PR</span><div><strong data-parent-name>Prind</strong><small>Llogaria familjare</small></div></div>
@@ -154,7 +154,7 @@
     <div class="parent-workspace-content">
       <header class="parent-workspace-header">
         <div><p id="parentViewKicker">Përditësimi ditor</p><h1 id="parentViewTitle">Sot</h1></div>
-        <div class="parent-header-actions"><label><span class="sr-only">Zgjidhni fëmijën</span><select id="parentChildSelectMobile"></select></label><button class="parent-header-notifications" type="button" data-parent-view="notifications" aria-label="Hap njoftimet">●<b data-parent-notification-count hidden>0</b></button><span id="parentHeaderAvatar">PR</span><button class="parent-mobile-logout" type="button" data-parent-logout aria-label="Dil nga llogaria" title="Dil nga llogaria">↪</button></div>
+        <div class="parent-header-actions"><label><span class="sr-only">Zgjidhni fëmijën</span><select id="parentChildSelectMobile"></select></label><span id="parentHeaderAvatar">PR</span><button class="parent-mobile-logout" type="button" data-parent-logout aria-label="Dil nga llogaria" title="Dil nga llogaria">↪</button></div>
       </header>
       <main class="parent-workspace-main">
         <section class="parent-workspace-view active" data-parent-panel="today">
@@ -200,7 +200,7 @@
         </section>
       </main>
     </div>
-    <nav class="parent-mobile-nav" aria-label="Navigimi i prindit"><button class="active" type="button" data-parent-view="today"><span>☀</span><small>Sot</small></button><button type="button" data-parent-view="progress"><span>✓</span><small>Progresi</small></button><button type="button" data-parent-view="materials"><span>▤</span><small>Materialet</small></button><button type="button" data-parent-view="messages"><span>◇</span><small>Mesazhet</small></button><button type="button" data-parent-view="notifications"><span>●<b data-parent-notification-count hidden>0</b></span><small>Njoftimet</small></button><button type="button" data-parent-view="profile"><span>⚙</span><small>Profili</small></button></nav>
+    <nav class="parent-mobile-nav" aria-label="Navigimi i prindit"><button class="active" type="button" data-parent-view="today"><span>☀</span><small>Sot</small></button><button type="button" data-parent-view="progress"><span>✓</span><small>Progresi</small></button><button type="button" data-parent-view="materials"><span>▤</span><small>Materialet</small></button><button type="button" data-parent-view="messages"><span>◇</span><small>Mesazhet</small></button><button type="button" data-parent-view="notifications"><span>●</span><small>Njoftimet</small></button><button type="button" data-parent-view="profile"><span>⚙</span><small>Profili</small></button></nav>
     <dialog class="parent-logout-dialog" id="parentLogoutDialog"><form method="dialog"><span>↪</span><h2>Dil nga llogaria?</h2><p>Jeni të sigurt që dëshironi të përfundoni sesionin?</p><div><button value="cancel">Jo, qëndro</button><button class="parent-confirm-logout" value="confirm">Po, dil</button></div></form></dialog>
   </section>
   <section class="role-gate hidden" id="adminLogin">
@@ -358,7 +358,55 @@
         </section>
 
         <section class="teacher-prototype-view" data-teacher-panel="support">
-          <div class="teacher-support-placeholder"><span>✦</span><p>Mbështetja AI</p><h2>Asistenti pedagogjik po vjen së shpejti</h2><p>Kjo hapësirë do të ndihmojë me strategji praktike në klasë, bazuar në nevojat dhe preferencat e nxënësit.</p><button type="button" disabled>Joaktive në këtë prototip</button></div>
+          <div class="teacher-support-layout">
+            <header class="teacher-support-header">
+              <span class="teacher-support-badge">✦ Asistenti AI</span>
+              <h2>Mbështetja Pedagogjike</h2>
+              <p>Merrni këshilla dhe strategji praktike për menaxhimin e klasës, përshtatjen e mësimdhënies dhe mbështetjen e nxënësve.</p>
+            </header>
+
+            <div class="teacher-support-prompts">
+              <span class="teacher-prompt-label">Pyetje të shpeshta:</span>
+              <div class="teacher-prompt-chips">
+                <button type="button" class="teacher-chip" data-suggest-prompt="Nxënësi ka vështirësi në përqendrim pas pushimit të gjatë. Çfarë mund të bëj?">Vështirësi përqendrimi</button>
+                <button type="button" class="teacher-chip" data-suggest-prompt="Si të përfshij më mirë një nxënës që ngurron të flasë me zë të lartë në klasë?">Nxënës introvertë</button>
+                <button type="button" class="teacher-chip" data-suggest-prompt="Çfarë strategjie të shkurtër mund të përdor për të zbutur tensionin gjatë punës në grupe?">Puna në grup</button>
+              </div>
+            </div>
+
+            <form class="teacher-support-form" id="teacherSupportForm">
+              <label for="teacherSupportInput">Përshkruani situatën ose sfidën në klasë:</label>
+              <textarea id="teacherSupportInput" rows="4" maxlength="2000" required placeholder="P.sh. Nxënësi në bankën e parë shpërqendrohet lehtësisht kur ka zhurmë në ambient..."></textarea>
+              <div class="teacher-support-form-actions">
+                <p class="teacher-support-status" id="teacherSupportStatus" aria-live="polite"></p>
+                <button class="teacher-primary-button" type="submit" id="teacherSupportSubmit">
+                  <span>✦</span> Kërko Mbështetje
+                </button>
+              </div>
+            </form>
+
+            <div class="teacher-support-response hidden" id="teacherSupportResponse">
+              <div class="teacher-response-card">
+                <h3><span>🔍</span> Vëzhgimi Pedagogjik</h3>
+                <p id="teacherSupportObservation"></p>
+              </div>
+
+              <div class="teacher-response-card">
+                <h3><span>📋</span> Hapat Praktikë për Klasë</h3>
+                <ul id="teacherSupportActions" class="teacher-action-list"></ul>
+              </div>
+
+              <div class="teacher-response-card">
+                <h3><span>👁</span> Çfarë të Vëzhgoni Më Tutje</h3>
+                <p id="teacherSupportObservationCue"></p>
+              </div>
+
+              <div class="teacher-response-card teacher-escalation-card hidden" id="teacherSupportEscalationCard">
+                <h3><span>⚠️</span> Udhëzim për Protokollin e Shkollës</h3>
+                <p id="teacherSupportEscalation"></p>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section class="teacher-prototype-view" data-teacher-panel="settings">
