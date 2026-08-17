@@ -253,12 +253,12 @@
         <details class="admin-inactive-section"><summary><span>Regjistrat joaktivë</span><strong id="adminInactiveStudentsCount">0</strong></summary><div class="admin-table"><div class="admin-table-head"><span>Nxënësi</span><span>Klasa</span><span>Statusi</span><span>Veprimet</span></div><div class="admin-table-body" id="adminInactiveStudentsRows"></div></div></details>
       </section>
       <section class="admin-view hidden" data-admin-view="teachers">
-        <div class="admin-section-head"><div><p>Llogaritë e stafit</p><h2>Mësimdhënësit</h2></div><button class="btn primary" type="button" data-action="invite-teacher">Fto mësimdhënës</button></div>
+        <div class="admin-section-head"><div><p>Llogaritë e stafit</p><h2>Mësimdhënësit</h2></div><button class="btn primary" type="button" data-action="invite-teacher">Krijo mësimdhënës</button></div>
         <div class="admin-table"><div class="admin-table-head"><span>Mësimdhënësi</span><span>Caktimet</span><span>Statusi</span><span>Veprimet</span></div><div class="admin-table-body" id="adminTeacherRows"></div></div>
         <details class="admin-inactive-section"><summary><span>Mësimdhënës joaktivë</span><strong id="adminInactiveTeachersCount">0</strong></summary><div class="admin-table"><div class="admin-table-head"><span>Mësimdhënësi</span><span>Caktimet</span><span>Statusi</span><span>Veprimet</span></div><div class="admin-table-body" id="adminInactiveTeacherRows"></div></div></details>
       </section>
       <section class="admin-view hidden" data-admin-view="parents">
-        <div class="admin-section-head"><div><p>Llogaritë familjare</p><h2>Prindërit</h2></div><button class="btn primary" type="button" data-action="invite-parent">Fto prind</button></div>
+        <div class="admin-section-head"><div><p>Llogaritë familjare</p><h2>Prindërit</h2></div><button class="btn primary" type="button" data-action="invite-parent">Krijo prind</button></div>
         <div class="admin-table"><div class="admin-table-head"><span>Prindi</span><span>Fëmijët</span><span>Statusi</span><span>Veprimet</span></div><div class="admin-table-body" id="adminParentRows"></div></div>
         <details class="admin-inactive-section"><summary><span>Prindër joaktivë</span><strong id="adminInactiveParentsCount">0</strong></summary><div class="admin-table"><div class="admin-table-head"><span>Prindi</span><span>Fëmijët</span><span>Statusi</span><span>Veprimet</span></div><div class="admin-table-body" id="adminInactiveParentRows"></div></div></details>
       </section>
@@ -358,54 +358,26 @@
         </section>
 
         <section class="teacher-prototype-view" data-teacher-panel="support">
-          <div class="teacher-support-layout">
-            <header class="teacher-support-header">
-              <span class="teacher-support-badge">✦ Asistenti AI</span>
-              <h2>Mbështetja Pedagogjike</h2>
-              <p>Merrni këshilla dhe strategji praktike për menaxhimin e klasës, përshtatjen e mësimdhënies dhe mbështetjen e nxënësve.</p>
-            </header>
-
-            <div class="teacher-support-prompts">
-              <span class="teacher-prompt-label">Pyetje të shpeshta:</span>
-              <div class="teacher-prompt-chips">
-                <button type="button" class="teacher-chip" data-suggest-prompt="Nxënësi ka vështirësi në përqendrim pas pushimit të gjatë. Çfarë mund të bëj?">Vështirësi përqendrimi</button>
-                <button type="button" class="teacher-chip" data-suggest-prompt="Si të përfshij më mirë një nxënës që ngurron të flasë me zë të lartë në klasë?">Nxënës introvertë</button>
-                <button type="button" class="teacher-chip" data-suggest-prompt="Çfarë strategjie të shkurtër mund të përdor për të zbutur tensionin gjatë punës në grupe?">Puna në grup</button>
-              </div>
+          <div class="teacher-support-shell">
+            <div class="teacher-section-heading">
+              <div><p>Mbështetje praktike</p><h2>Mbështetja AI</h2></div>
+              <button class="teacher-support-clear" type="button" id="teacherSupportClear">Pastro bisedën</button>
             </div>
-
-            <form class="teacher-support-form" id="teacherSupportForm">
-              <label for="teacherSupportInput">Përshkruani situatën ose sfidën në klasë:</label>
-              <textarea id="teacherSupportInput" rows="4" maxlength="2000" required placeholder="P.sh. Nxënësi në bankën e parë shpërqendrohet lehtësisht kur ka zhurmë në ambient..."></textarea>
-              <div class="teacher-support-form-actions">
+            <p class="teacher-support-note">Përdorni këtë si një ndihmës të shpejtë për qetësim, vëzhgim dhe komunikim të sigurt. Mos shkruani të dhëna identifikuese që nuk janë të nevojshme.</p>
+            <div class="teacher-support-context">
+              <label>Nxënësi<select id="teacherSupportStudentSelect"></select></label>
+              <div class="teacher-support-context-cards" id="teacherSupportContextCards"></div>
+            </div>
+            <div class="teacher-support-chat" id="teacherSupportChat" aria-live="polite"></div>
+            <form class="teacher-support-compose" id="teacherSupportForm">
+              <label class="sr-only" for="teacherSupportInput">Përshkruani situatën</label>
+              <textarea id="teacherSupportInput" rows="4" maxlength="2000" placeholder="Përshkruani shkurt situatën në klasë..."></textarea>
+              <div class="teacher-support-compose-row">
                 <p class="teacher-support-status" id="teacherSupportStatus" aria-live="polite"></p>
-                <button class="teacher-primary-button" type="submit" id="teacherSupportSubmit">
-                  <span>✦</span> Kërko Mbështetje
-                </button>
+                <button class="teacher-primary-button" type="submit" id="teacherSupportSubmit">Dërgo</button>
               </div>
+              <div class="teacher-support-quick" id="teacherSupportQuick"></div>
             </form>
-
-            <div class="teacher-support-response hidden" id="teacherSupportResponse">
-              <div class="teacher-response-card">
-                <h3><span>🔍</span> Vëzhgimi Pedagogjik</h3>
-                <p id="teacherSupportObservation"></p>
-              </div>
-
-              <div class="teacher-response-card">
-                <h3><span>📋</span> Hapat Praktikë për Klasë</h3>
-                <ul id="teacherSupportActions" class="teacher-action-list"></ul>
-              </div>
-
-              <div class="teacher-response-card">
-                <h3><span>👁</span> Çfarë të Vëzhgoni Më Tutje</h3>
-                <p id="teacherSupportObservationCue"></p>
-              </div>
-
-              <div class="teacher-response-card teacher-escalation-card hidden" id="teacherSupportEscalationCard">
-                <h3><span>⚠️</span> Udhëzim për Protokollin e Shkollës</h3>
-                <p id="teacherSupportEscalation"></p>
-              </div>
-            </div>
           </div>
         </section>
 

@@ -182,20 +182,18 @@ export async function deleteTeacherNotification(notificationId) {
   if (error) throw error;
 }
 
-export async function getTeacherAISupport(situation) {
-  const { data, error } = await supabaseClient.functions.invoke('support', {
-    body: { situation }
-  });
-  if (error) {
-    let msg = error.message || 'Ndodhi një gabim me asistentin AI.';
-    if (error.context && typeof error.context.json === 'function') {
-      try {
-        const body = await error.context.json();
-        if (body?.error) msg = body.error;
-      } catch (e) { /* ignore */ }
-    }
-    throw new Error(msg);
-  }
-  if (data?.error) throw new Error(data.error);
-  return data;
+
+export async function requestTeacherSupport({ message, history = [], student = null }) {
+  const payload = {
+    message: String(message || ''),
+    history: Array.isArray(history) ? history.slice(-8).map(item => ({
+      role: item.role === 'assistant' ? 'assistant' : 'user',
+      content: String(item.content || '').trim()
+    })) : [],
+    student
+  };
+  const result = await supabaseClient.functions.invoke('support', { body: payload });
+  if (result.error) throw result.error;
+  if (result.data && result.data.error) throw new Error(result.data.error);
+  return result.data;
 }
