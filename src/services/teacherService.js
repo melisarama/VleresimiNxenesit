@@ -192,8 +192,22 @@ export async function requestTeacherSupport({ message, history = [], student = n
     })) : [],
     student
   };
-  const result = await supabaseClient.functions.invoke('support', { body: payload });
-  if (result.error) throw result.error;
-  if (result.data && result.data.error) throw new Error(result.data.error);
-  return result.data;
+  const fallback = {
+    answer: 'Filloni me qetesi, nje udhezim te vetem dhe nje hap te vogel qe nxenesi mund ta ndjeke menjehere.',
+    actions: [
+      'Flisni me ze te qete dhe jepni nje udhezim te shkurter.',
+      'Ofroni nje zgjedhje te thjeshte ose nje detyre te vogel.',
+      'Jepini pak hapesire dhe vezhgoni nese qetesohet.'
+    ],
+    observationCue: 'Vezhgoni nese nxenesi reagon me me shume qetesi pas udhezimit te shkurter.',
+    escalation: 'Nese situata perkeqesohet ose ka rrezik, kerkoni ndihme sipas protokollit te shkolles.'
+  };
+  try {
+    const result = await supabaseClient.functions.invoke('support', { body: payload });
+    if (result.error) return fallback;
+    if (result.data && result.data.error) return fallback;
+    return result.data || fallback;
+  } catch {
+    return fallback;
+  }
 }

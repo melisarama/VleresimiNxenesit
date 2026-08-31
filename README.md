@@ -74,7 +74,7 @@ SUPABASE_PUBLISHABLE_KEY=publishable-key
 PORT=8080
 ```
 
-`OPENAI_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` must be stored only on the server or in Supabase Secrets—never in browser JavaScript.
+`GEMINI_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` must be stored only on the server or in Supabase Secrets—never in browser JavaScript.
 
 ## Demo Accounts
 

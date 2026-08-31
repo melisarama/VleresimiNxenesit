@@ -1,24 +1,13 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 type SupportMessage = {
   role?: "user" | "assistant";
   content?: string;
 };
 
-type SupportStudent = {
-  id?: string;
-  name?: string;
-  className?: string;
-  supportSummary?: string;
-  preferredMode?: string;
-  learningPreferences?: string[];
-  communicationLanguage?: string;
-  communicationMethod?: string;
-  accessibilityInformation?: string;
-};
-
 type SupportRequest = {
   message?: string;
   history?: SupportMessage[];
-  student?: SupportStudent | null;
 };
 
 type SupportResponse = {
@@ -28,43 +17,19 @@ type SupportResponse = {
   escalation: string;
 };
 
-interface AIProvider {
-  generateSupport(input: SupportRequest): Promise<SupportResponse>;
-}
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SUPPORT_SYSTEM_PROMPT = [
-  "Ti je asistent pedagogjik për mësimdhënës në Kosovë.",
-  "Përgjigju vetëm në shqip, me ton të qetë, empatik dhe praktik.",
-  "Ndihmo me strategji de-escalimi, vetërregullim, komunikim të qartë, mbështetje sensoriale, vëzhgim të sjelljes dhe kur të kërkohet ndihmë shtesë.",
-  "Mos jep diagnozë, terapi ose këshilla mjekësore.",
-  "Mos sugjero ndëshkim, kufizim fizik ose ndërhyrje të pasigurt.",
-  "Mos shpik detaje për nxënësin apo rregulla të shkollës që nuk janë dhënë.",
-  "Nëse ka rrezik të menjëhershëm për nxënësin, klasën ose stafin, thuaj menjëherë të ndiqen protokollet e shkollës dhe shërbimet emergjente lokale.",
-  "Kur mungojnë detaje, jep një hap të sigurt të parë dhe një pyetje sqaruese të shkurtër."
+const SYSTEM_PROMPT = [
+  "Ti je asistent pedagogjik per mesimdhenes ne Kosove.",
+  "Pergjigju vetem ne shqip.",
+  "Jep nje pergjigje te shkurter, tre hapa praktike, nje gje per vezhgim dhe nje keshille per eskalim.",
+  "Mos jep diagnoza ose keshilla mjekesore.",
+  "Kthe vetem nje objekt JSON me fushat: answer, actions, observationCue, escalation.",
 ].join(" ");
-
-const SUPPORT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["answer", "actions", "observationCue", "escalation"],
-  properties: {
-    answer: { type: "string" },
-    actions: {
-      type: "array",
-      minItems: 3,
-      maxItems: 3,
-      items: { type: "string" },
-    },
-    observationCue: { type: "string" },
-    escalation: { type: "string" },
-  },
-} as const;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -73,159 +38,189 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function env(name: string): string {
-  const value = Deno.env.get(name);
+function env(name: string) {
+  const value = Deno.env.get(name)?.trim();
   if (!value) throw new Error(`${name}_MISSING`);
   return value;
 }
 
-function optionalEnv(name: string): string {
+function optionalEnv(name: string) {
   return Deno.env.get(name)?.trim() || "";
 }
 
-function sanitize(input: string): string {
-  return input
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
-    .replace(/\+?\d[\d\s().-]{6,}\d/g, "[numër]")
-    .replace(/\b[A-ZÇË][a-zçë]+ [A-ZÇË][a-zçë]+\b/g, "[emër]")
-    .trim();
+function supabasePublishableKey() {
+  return optionalEnv("SUPABASE_ANON_KEY") || env("SUPABASE_PUBLISHABLE_KEY");
 }
 
-function containsImmediateRisk(input: string): boolean {
-  return /vets[eë]vras|suicid|vet[eë]l[eë]nd|dhun|arm[eë]|abuz|rrezik i menj[eë]hersh[eë]m|plagos|godit/i.test(input);
+function candidateModels() {
+  const configured = optionalEnv("GEMINI_MODEL");
+  const defaults = ["gemini-2.5-flash", "gemini-3.6-flash"];
+  return [configured, ...defaults].filter(Boolean).filter((value, index, array) => array.indexOf(value) === index);
 }
 
-function normalizeHistory(history: SupportMessage[] = []): Array<{ role: "user" | "assistant"; content: string }> {
+function sanitize(input: string, maxLength = 500) {
+  return String(input || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizeHistory(history: SupportMessage[] = []) {
   return history
-    .slice(-8)
-    .map(item => ({
-      role: (item.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
-      content: sanitize(String(item.content || "")).slice(0, 1000),
+    .slice(-6)
+    .map((item) => ({
+      role: item.role === "assistant" ? "assistant" as const : "user" as const,
+      content: sanitize(item.content || "", 500),
     }))
-    .filter(item => item.content);
+    .filter((item) => item.content);
 }
 
-function studentContext(student: SupportStudent | null | undefined) {
-  if (!student) return "";
-  const rows = [
-    student.name ? `Nxënësi: ${student.name}` : "",
-    student.className ? `Klasa: ${student.className}` : "",
-    student.supportSummary ? `Përmbledhje mbështetëse: ${student.supportSummary}` : "",
-    student.preferredMode ? `Mënyra e preferuar: ${student.preferredMode}` : "",
-    student.learningPreferences?.length ? `Preferencat: ${student.learningPreferences.join(", ")}` : "",
-    student.communicationLanguage ? `Gjuha e komunikimit: ${student.communicationLanguage}` : "",
-    student.communicationMethod ? `Mënyra e komunikimit: ${student.communicationMethod}` : "",
-    student.accessibilityInformation ? `Qasshmëria: ${student.accessibilityInformation}` : "",
-  ].filter(Boolean);
-  return rows.length ? rows.join("\n") : "";
-}
+async function requireTeacher(request: Request) {
+  const authorization = request.headers.get("Authorization");
+  if (!authorization) throw new Error("UNAUTHORIZED");
 
-function buildInputSections(input: SupportRequest) {
-  const sections: Array<{ role: "user" | "assistant"; content: Array<{ type: "input_text"; text: string }> }> = [];
-  const context = studentContext(input.student);
-  if (context) {
-    sections.push({
-      role: "user",
-      content: [{ type: "input_text", text: `Konteksti i nxënësit:\n${context}` }],
-    });
-  }
-  normalizeHistory(input.history).forEach(message => {
-    const role: "user" | "assistant" = message.role === "assistant" ? "assistant" : "user";
-    sections.push({
-      role,
-      content: [{ type: "input_text", text: message.content }],
-    });
+  const userClient = createClient(env("SUPABASE_URL"), supabasePublishableKey(), {
+    global: { headers: { Authorization: authorization } },
+    auth: { persistSession: false, autoRefreshToken: false },
   });
-  const finalMessage = sanitize(String(input.message || "")).trim();
-  if (finalMessage) {
-    sections.push({
-      role: "user",
-      content: [{ type: "input_text", text: finalMessage }],
+
+  const { data: authData, error: authError } = await userClient.auth.getUser();
+  if (authError || !authData.user?.id) throw new Error("UNAUTHORIZED");
+
+  const { data: profileData, error: profileError } = await userClient
+    .from("profiles")
+    .select("id,role,active")
+    .eq("id", authData.user.id)
+    .single();
+  const profile = profileData as { id: string; role: string; active: boolean } | null;
+
+  if (profileError || !profile || profile.role !== "teacher" || !profile.active) {
+    throw new Error("UNAUTHORIZED");
+  }
+}
+
+function buildPrompt(input: SupportRequest) {
+  const parts = [
+    "Situata e mesimdhenesit:",
+    sanitize(input.message || "", 1500),
+  ];
+
+  const history = normalizeHistory(input.history);
+  if (history.length) {
+    parts.push("Biseda e fundit:");
+    history.forEach((item) => {
+      parts.push(`${item.role === "assistant" ? "Asistenti" : "Mesimdhenesi"}: ${item.content}`);
     });
   }
-  return sections;
+
+  parts.push("Formati i sakte:");
+  parts.push('{"answer":"...", "actions":["...", "...", "..."], "observationCue":"...", "escalation":"..."}');
+  return parts.join("\n");
 }
 
-function parseResponse(payload: unknown): SupportResponse {
-  const outputText =
-    (payload as { output_text?: string }).output_text ??
-    (payload as {
-      output?: Array<{ content?: Array<{ text?: string }> }>;
-    }).output?.flatMap(item => item.content ?? []).map(content => content.text).filter(Boolean).join("\n") ??
-    "";
-  if (!outputText) throw new Error("OPENAI_EMPTY_RESPONSE");
-  const parsed = JSON.parse(outputText) as SupportResponse;
-  if (!parsed || typeof parsed.answer !== "string" || !Array.isArray(parsed.actions) || typeof parsed.observationCue !== "string" || typeof parsed.escalation !== "string") {
-    throw new Error("OPENAI_INVALID_RESPONSE");
+function fallbackSupport(message = ""): SupportResponse {
+  const shortMessage = sanitize(message, 200);
+  return {
+    answer: shortMessage
+      ? `Per kete situate, filloni me qetesi dhe nje udhezim te thjeshte: ${shortMessage}`
+      : "Filloni me qetesi, nje udhezim te thjeshte dhe nje hap te vogel qe nxenesi mund ta ndjeke menjehere.",
+    actions: [
+      "Flisni me ze te qete dhe jepni nje udhezim te vetem te shkurter.",
+      "Ofroni nje zgjedhje te thjeshte ose nje hap te vogel qe nxenesi mund ta beje tani.",
+      "Ulni stimulimin rreth nxenesit dhe jepini pak kohe per t'u rregulluar.",
+    ],
+    observationCue: "Vezhgoni nese qetesohet pas udhezimit te shkurter dhe nese e pranon zgjedhjen e ofruar.",
+    escalation: "Nese sjellja perkeqesohet ose ka rrezik, ndiqni protokollin e shkolles dhe kerkoni ndihme shtese.",
+  };
+}
+
+function normalizeSupportResponse(payload: unknown, message = ""): SupportResponse {
+  const parsed = payload as Partial<SupportResponse> | null;
+  if (!parsed || typeof parsed !== "object") return fallbackSupport(message);
+
+  const answer = typeof parsed.answer === "string" ? parsed.answer.trim() : "";
+  const actions = Array.isArray(parsed.actions)
+    ? parsed.actions.map((item) => typeof item === "string" ? item.trim() : "").filter(Boolean).slice(0, 3)
+    : [];
+  const observationCue = typeof parsed.observationCue === "string" ? parsed.observationCue.trim() : "";
+  const escalation = typeof parsed.escalation === "string" ? parsed.escalation.trim() : "";
+
+  if (!answer || !observationCue || !escalation) return fallbackSupport(message);
+
+  while (actions.length < 3) {
+    actions.push(fallbackSupport(message).actions[actions.length]);
   }
-  return parsed;
+
+  return {
+    answer,
+    actions,
+    observationCue,
+    escalation,
+  };
 }
 
-class OpenAIProvider implements AIProvider {
-  async generateSupport(input: SupportRequest): Promise<SupportResponse> {
-    const apiKey = env("OPENAI_API_KEY");
-    const model = Deno.env.get("OPENAI_MODEL") || "gpt-5";
-    const response = await fetch("https://api.openai.com/v1/responses", {
+function extractJsonObject(text: string) {
+  const trimmed = text.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "").trim();
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return trimmed;
+  return trimmed.slice(start, end + 1);
+}
+
+async function generateSupport(input: SupportRequest): Promise<SupportResponse> {
+  const apiKey = env("GEMINI_API_KEY");
+
+  for (const model of candidateModels()) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
-      headers,
+      headers: {
+        "x-goog-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
-        model,
-        temperature: 0.1,
-        max_output_tokens: 350,
-        instructions: SUPPORT_SYSTEM_PROMPT,
-        input: buildInputSections(input),
-        store: false,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "teacher_support_assistant",
-            strict: true,
-            schema: SUPPORT_SCHEMA,
-          },
+        systemInstruction: {
+          parts: [{ text: SYSTEM_PROMPT }],
+        },
+        contents: [{
+          role: "user",
+          parts: [{ text: buildPrompt(input) }],
+        }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 800,
+          responseMimeType: "application/json",
         },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("GEMINI_ERROR:", response.status, errorText);
-      if (response.status === 400) throw new Error(`GEMINI_400: Bad request — model name may be wrong. Model used: ${model}`);
-      if (response.status === 403) throw new Error("GEMINI_403: API key does not have access. Ensure Gemini API is enabled.");
-      if (response.status === 404) throw new Error(`GEMINI_404: Model not found (${model}). Try GEMINI_MODEL=gemini-2.0-flash in Supabase Secrets.`);
-      if (response.status === 429) throw new Error("GEMINI_429: Rate limit reached. Wait a moment and try again.");
-      throw new Error(`GEMINI_${response.status}: ${errorText.slice(0, 200)}`);
+      console.error("GEMINI_ERROR", model, response.status, errorText);
+      if (response.status === 404) continue;
+      throw new Error(`GEMINI_${response.status}`);
     }
 
-    return parseResponse(await response.json());
+    const payload = await response.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = (payload.candidates || [])
+      .flatMap((candidate) => candidate.content?.parts || [])
+      .map((part) => typeof part.text === "string" ? part.text : "")
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+
+    if (!text) return fallbackSupport(input.message || "");
+
+    try {
+      return normalizeSupportResponse(JSON.parse(extractJsonObject(text)), input.message || "");
+    } catch (error) {
+      console.error("GEMINI_PARSE_ERROR", error);
+      return fallbackSupport(input.message || "");
+    }
   }
-}
 
-function provider(): AIProvider {
-  const providerName = (Deno.env.get("AI_PROVIDER") || "openai").toLowerCase();
-  if (providerName === "openai") return new OpenAIProvider();
-  throw new Error("AI_PROVIDER_UNSUPPORTED");
-}
-
-async function requireTeacher(request: Request): Promise<void> {
-  const authorization = request.headers.get("Authorization");
-  if (!authorization) throw new Error("UNAUTHORIZED");
-
-  const supabaseUrl = env("SUPABASE_URL");
-  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-
-  const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: { Authorization: authorization, apikey: serviceKey },
-  });
-  if (!userResponse.ok) throw new Error("UNAUTHORIZED");
-  const user = await userResponse.json();
-
-  const profileResponse = await fetch(
-    `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&role=eq.teacher&active=eq.true&select=id`,
-    { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } },
-  );
-  if (!profileResponse.ok) throw new Error("UNAUTHORIZED");
-  const profiles = await profileResponse.json();
-  if (!profiles.length) throw new Error("UNAUTHORIZED");
+  return fallbackSupport(input.message || "");
 }
 
 Deno.serve(async (request) => {
@@ -234,39 +229,22 @@ Deno.serve(async (request) => {
 
   try {
     await requireTeacher(request);
-    const body = (await request.json().catch(() => ({}))) as SupportRequest;
-    const message = sanitize(String(body.message || "")).trim();
-    const history = normalizeHistory(body.history);
-    if (!message || message.length > 2000) {
-      return json({ error: "Shkruani një situatë me më pak se 2000 shkronja." }, 400);
+    const body = await request.json().catch(() => ({})) as SupportRequest;
+    const message = sanitize(body.message || "", 1500);
+
+    if (!message) {
+      return json(fallbackSupport(""));
     }
 
-    const riskCheck = [message, ...history.map(item => item.content)].join("\n");
-    if (containsImmediateRisk(riskCheck)) {
-      return json({
-        answer: "Kjo duket si situatë sigurie dhe nuk duhet të trajtohet vetëm nga asistenti.",
-        actions: [
-          "Siguroni praninë e një të rrituri përgjegjës pranë nxënësit.",
-          "Ndiqni menjëherë protokollin e mbrojtjes së shkollës.",
-          "Kontaktoni shërbimet emergjente lokale nëse rreziku është i afërt.",
-        ],
-        observationCue: "Shënoni vetëm faktet e vëzhguara dhe kujt iu raportua situata.",
-        escalation: "Ndiqni protokollin e shkollës për mbrojtje dhe urgjencë.",
-      } satisfies SupportResponse);
-    }
-
-    return json(await provider().generateSupport({
+    return json(await generateSupport({
       message,
-      history,
-      student: body.student || null,
+      history: normalizeHistory(body.history),
     }));
   } catch (error) {
     console.error("support function failed", error);
-    const message = error instanceof Error && error.message === "UNAUTHORIZED"
-      ? "Nuk keni qasje në këtë asistent."
-      : error instanceof Error && error.message === "OPENAI_API_KEY_MISSING"
-        ? "Asistenti nuk është i konfiguruar ende."
-        : "Asistenti nuk mundi të përgjigjet tani. Provoni përsëri.";
-    return json({ error: message }, error instanceof Error && error.message === "UNAUTHORIZED" ? 401 : 503);
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return json({ error: "UNAUTHORIZED" }, 401);
+    }
+    return json(fallbackSupport(""));
   }
 });

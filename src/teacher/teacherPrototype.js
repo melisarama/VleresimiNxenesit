@@ -10,10 +10,10 @@ import {
   archiveTeacherThread,
   deleteTeacherNotification,
   createTeacherChapter,
-  getTeacherAISupport,
   markTeacherNotificationRead,
   markTeacherNotificationUnread,
   markTeacherThreadRead,
+  markTeacherThreadUnread,
   requestTeacherSupport,
   saveChapterAssessment,
   saveTeacherFinalGrade,
@@ -297,19 +297,9 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
         message,
         history: priorHistory.map(item => ({
           role: item.role,
-          content: item.role === 'assistant' ? supportConversationText(item.data || item) : item.content
+          content: item.role === 'assistant' ? (item.data?.answer || item.content || '') : item.content
         })),
-        student: student ? {
-          id: student.id,
-          name: student.name,
-          className: student.className || '',
-          supportSummary: student.supportSummary || '',
-          preferredMode: student.preferredMode || '',
-          learningPreferences: student.learningPreferences || [],
-          communicationLanguage: student.communicationLanguage || '',
-          communicationMethod: student.communicationMethod || '',
-          accessibilityInformation: student.accessibilityInformation || ''
-        } : null
+        student: student ? { id: student.id } : null
       });
       session.messages.push({
         role: 'assistant',

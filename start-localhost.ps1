@@ -93,7 +93,11 @@ function Get-SupportReply {
     param([string]$Message)
     if ([string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY)) { throw 'GEMINI_API_KEY_MISSING' }
 
-    $model = if ([string]::IsNullOrWhiteSpace($env:GEMINI_MODEL)) { 'gemini-2.5-flash' } else { $env:GEMINI_MODEL.Trim() }
+    $configuredModel = if ([string]::IsNullOrWhiteSpace($env:GEMINI_MODEL)) { '' } else { $env:GEMINI_MODEL.Trim() }
+    $models = @()
+    if (-not [string]::IsNullOrWhiteSpace($configuredModel)) { $models += $configuredModel }
+    if ($models -notcontains 'gemini-2.5-flash') { $models += 'gemini-2.5-flash' }
+    if ($models -notcontains 'gemini-3.6-flash') { $models += 'gemini-3.6-flash' }
     $systemInstruction = @"
 Ti je një asistent pedagogjik në kohë reale për mësimdhënës në Kosovë. Përgjigju vetëm në shqip, qartë dhe shkurt, duke u bazuar drejtpërdrejt në situatën e fundit të shkruar nga mësimdhënësi.
 
@@ -107,15 +111,29 @@ Përdor këtë format:
 Mos përdor hyrje të përgjithshme, mos përsërit modele të gatshme dhe mos kërko të dhëna personale ose mjekësore. Nëse ka rrezik të menjëhershëm, dhunë, vetëlëndim ose rrezik për të tjerët, udhëzo fillimisht sigurimin e fëmijës, aktivizimin e protokollit të mbrojtjes së shkollës dhe kontaktimin e shërbimeve emergjente lokale. Këshilla nuk zëvendëson profesionistët ose procedurat e shkollës.
 "@
     $requestBody = @{
-        system_instruction = @{ parts = @(@{ text = $systemInstruction }) }
-        contents = @(@{ parts = @(@{ text = $Message }) })
-    } | ConvertTo-Json -Depth 6
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=$($env:GEMINI_API_KEY)"
-    $response = Invoke-RestMethod -Method Post -Uri $url -Headers @{ 'Content-Type' = 'application/json' } -Body $utf8.GetBytes($requestBody) -TimeoutSec 60
-
-    $reply = $response.candidates[0].content.parts[0].text
-    if (-not $reply) { throw 'Gemini AI nuk ktheu tekst.' }
-    return $reply.Trim()
+        systemInstruction = @{ parts = @(@{ text = $systemInstruction }) }
+        contents = @(@{ role = 'user'; parts = @(@{ text = $Message }) })
+        generationConfig = @{
+            temperature = 0.2
+            maxOutputTokens = 400
+        }
+    } | ConvertTo-Json -Depth 8
+    foreach ($model in $models) {
+        try {
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent"
+            $response = Invoke-RestMethod -Method Post -Uri $url -Headers @{ 'Content-Type' = 'application/json'; 'x-goog-api-key' = $env:GEMINI_API_KEY } -Body $utf8.GetBytes($requestBody) -TimeoutSec 60
+            $reply = $response.candidates[0].content.parts[0].text
+            if (-not $reply) { throw 'Gemini AI nuk ktheu tekst.' }
+            return $reply.Trim()
+        } catch {
+            $statusCode = $_.Exception.Response.StatusCode.value__
+            if ($statusCode -eq 404 -and $model -ne $models[-1]) {
+                continue
+            }
+            throw
+        }
+    }
+    throw 'Gemini AI nuk gjeti model te vlefshem.'
 }
 
 try {
