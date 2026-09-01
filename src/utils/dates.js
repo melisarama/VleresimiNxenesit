@@ -41,6 +41,15 @@ export function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function schoolDayIso(reference = new Date()) {
+  const date = parseDateInput(reference) || new Date();
+  const normalized = new Date(date.getTime());
+  const day = normalized.getDay();
+  if (day === 6) normalized.setDate(normalized.getDate() - 1);
+  if (day === 0) normalized.setDate(normalized.getDate() - 2);
+  return normalized.toISOString().slice(0, 10);
+}
+
 export function formatSqDate(value, { includeTime = false, weekday = false } = {}) {
   const date = parseDateInput(value);
   if (!date) return '';

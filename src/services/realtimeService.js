@@ -55,6 +55,7 @@ export function subscribeToAssistantWorkspace(userId, onChange) {
   const channelName = `assistant-workspace-${userId}-${Date.now()}`;
   const channel = [
     { table: 'user_notifications', filter: `recipient_id=eq.${userId}` },
+    { table: 'communication_threads', filter: `assistant_teacher_id=eq.${userId}` },
     { table: 'assistant_teacher_students', filter: `assistant_teacher_id=eq.${userId}` },
     { table: 'daily_moods' },
     { table: 'student_support_profiles' },

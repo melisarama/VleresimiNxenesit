@@ -87,6 +87,12 @@ function buildMoodState(moods, students) {
   return { todayMoods, moodHistories };
 }
 
+function profileName(profile, fallback) {
+  if (!profile) return fallback;
+  const name = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+  return name || fallback;
+}
+
 function buildTeacherInbox(userId, students, threads, threadMessages, inboxNotifications) {
   const messagesByThread = threadMessages.reduce((map, message) => {
     (map[message.thread_id] ||= []).push(message);
@@ -96,13 +102,16 @@ function buildTeacherInbox(userId, students, threads, threadMessages, inboxNotif
   const threadInbox = threads.filter(thread => !thread.teacher_archived_at).map(thread => {
     const messages = messagesByThread[thread.id] || [];
     const latest = messages[messages.length - 1];
-    const parent = thread.parent_profiles;
+    const counterpart = thread.assistant_teacher_id
+      ? profileName(thread.assistant_profiles, 'Asistenti')
+      : profileName(thread.parent_profiles, 'Prindi');
     const student = thread.students;
     return {
       id: thread.id,
       type: 'thread',
       unread: messages.some(message => message.sender_id !== userId && !message.read_at),
-      parent: parent ? `${parent.first_name} ${parent.last_name}` : 'Prindi',
+      parent: counterpart,
+      counterpartRole: thread.assistant_teacher_id ? 'Asistenti' : 'Prindi',
       student: student ? `${student.first_name} ${student.last_name}` : 'Nxenesi',
       subject: thread.title,
       context: thread.subjects?.name || '',
@@ -117,6 +126,64 @@ function buildTeacherInbox(userId, students, threads, threadMessages, inboxNotif
     type: 'notification',
     unread: !item.read_at,
     parent: 'Perditesim ditor',
+    student: students.find(student => student.id === item.student_id)?.name || 'Nxenesi',
+    subject: item.title,
+    context: 'Gjendja ditore',
+    time: item.created_at,
+    body: item.body,
+    notification: item
+  }));
+
+  const piaInbox = inboxNotifications.filter(item => item.kind === 'pia').map(item => ({
+    id: item.id,
+    type: 'notification',
+    unread: !item.read_at,
+    parent: 'PIA',
+    counterpartRole: 'Asistenti',
+    student: students.find(student => student.id === item.student_id)?.name || 'Nxenesi',
+    subject: item.title,
+    context: 'PIA',
+    time: item.created_at,
+    body: item.body,
+    notification: item
+  }));
+
+  return [...threadInbox, ...moodInbox, ...piaInbox].sort((left, right) => new Date(right.time) - new Date(left.time));
+}
+
+function buildAssistantInbox(userId, students, threads, threadMessages, inboxNotifications) {
+  const messagesByThread = threadMessages.reduce((map, message) => {
+    (map[message.thread_id] ||= []).push(message);
+    return map;
+  }, {});
+
+  const threadInbox = threads.filter(thread => !thread.assistant_archived_at).map(thread => {
+    const messages = messagesByThread[thread.id] || [];
+    const latest = messages[messages.length - 1];
+    const student = thread.students;
+    const toParent = Boolean(thread.parent_id);
+    return {
+      id: thread.id,
+      type: 'thread',
+      unread: messages.some(message => message.sender_id !== userId && !message.read_at),
+      counterpart: toParent ? profileName(thread.parent_profiles, 'Prindi') : profileName(thread.teacher_profiles, 'Mesimdhenesi'),
+      counterpartRole: toParent ? 'Prindi' : 'Mesimdhenesi',
+      student: student ? `${student.first_name} ${student.last_name}` : 'Nxenesi',
+      subject: thread.title,
+      context: toParent ? 'Familja' : (thread.subjects?.name || 'Lenda'),
+      time: latest?.created_at || thread.updated_at,
+      body: latest?.body || '',
+      messages,
+      thread
+    };
+  });
+
+  const moodInbox = inboxNotifications.filter(item => item.kind === 'daily_mood').map(item => ({
+    id: item.id,
+    type: 'notification',
+    unread: !item.read_at,
+    counterpart: 'Perditesim ditor',
+    counterpartRole: 'Prindi',
     student: students.find(student => student.id === item.student_id)?.name || 'Nxenesi',
     subject: item.title,
     context: 'Gjendja ditore',
@@ -288,14 +355,20 @@ async function loadAssistantTeacherData(user, shouldStartRealtime = true) {
 
   const students = buildStudentRows(results.students || [], results.supportProfiles || []);
   const { todayMoods, moodHistories } = buildMoodState(results.moods || [], students);
+  const inboxMessages = buildAssistantInbox(user.id, students, results.threads || [], results.threadMessages || [], results.notifications || []);
 
   assistantTeacherPrototype.setData({
     assistantTeacherName: `${results.profile.first_name} ${results.profile.last_name}`,
+    assistantTeacherEmail: user.email || '',
+    assistantTeacherId: user.id,
     students,
     moods: todayMoods,
     moodHistories,
     piaObjectives: results.piaObjectives || [],
-    piaUpdates: results.piaUpdates || []
+    piaUpdates: results.piaUpdates || [],
+    messages: inboxMessages,
+    preferences: results.preferences || null,
+    messageRecipients: results.messageRecipients || {}
   });
 
   activeAssistantTeacherUser = user;

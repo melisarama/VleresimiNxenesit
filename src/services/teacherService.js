@@ -16,7 +16,7 @@ export async function fetchTeacherDashboardData(userId) {
     supabaseClient.from('teacher_subjects').select('subject_id,subjects(id,name)').eq('teacher_id', userId),
     supabaseClient.from('teacher_classes').select('class_id,subject_id,classes(id,name,school_year),subjects(id,name)').eq('teacher_id', userId),
     supabaseClient.from('teacher_students').select('student_id').eq('teacher_id', userId),
-    supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,subject_id,title,teacher_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name)').eq('teacher_id', userId).order('updated_at', { ascending: false }),
+    supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,assistant_teacher_id,subject_id,title,teacher_archived_at,assistant_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name),assistant_profiles:profiles!communication_threads_assistant_teacher_id_fkey(first_name,last_name)').eq('teacher_id', userId).order('updated_at', { ascending: false }),
     supabaseClient.from('communication_messages').select('id,thread_id,sender_id,body,read_at,created_at').order('created_at'),
     supabaseClient.from('user_notifications').select('*').eq('recipient_id', userId).order('created_at', { ascending: false }),
     supabaseClient.from('teacher_notification_preferences').select('*').eq('profile_id', userId).maybeSingle(),
@@ -72,7 +72,7 @@ export async function fetchTeacherDashboardData(userId) {
       supabaseClient.from('daily_moods').select('student_id,mood,parent_comment,reported_on').in('student_id', studentIds).order('reported_on', { ascending: false }),
       supabaseClient.from('final_grades').select('id,student_id,teacher_id,subject_id,academic_period_id,grade,parent_message,published_at,updated_at').in('student_id', studentIds),
       supabaseClient.from('pia_objectives').select('id,student_id,assistant_teacher_id,title,details,active,created_at,updated_at').in('student_id', studentIds).order('updated_at', { ascending: false }),
-      supabaseClient.from('pia_objective_updates').select('id,objective_id,student_id,assistant_teacher_id,rating,comment,created_at,updated_at').in('student_id', studentIds).order('created_at', { ascending: false })
+      supabaseClient.from('pia_objective_updates').select('id,objective_id,student_id,assistant_teacher_id,rating,comment,reported_on,created_at,updated_at').in('student_id', studentIds).order('reported_on', { ascending: false }).order('updated_at', { ascending: false })
     ]);
 
     [supportResult, chapterResult, gradeResult, moodResult, finalGradeResult, piaObjectiveResult, piaUpdateResult] = scopedResults;
@@ -155,35 +155,84 @@ export async function fetchAssistantTeacherDashboardData(userId) {
 
   const studentIds = (assignmentResult.data || []).map(item => item.student_id);
   if (!studentIds.length) {
+    const [threadResult, threadMessageResult, notificationResult, preferenceResult] = await Promise.all([
+      supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,assistant_teacher_id,subject_id,title,parent_archived_at,teacher_archived_at,assistant_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name),teacher_profiles:profiles!communication_threads_teacher_id_fkey(first_name,last_name),assistant_profiles:profiles!communication_threads_assistant_teacher_id_fkey(first_name,last_name)').eq('assistant_teacher_id', userId).order('updated_at', { ascending: false }),
+      supabaseClient.from('communication_messages').select('id,thread_id,sender_id,body,read_at,created_at').order('created_at'),
+      supabaseClient.from('user_notifications').select('*').eq('recipient_id', userId).order('created_at', { ascending: false }),
+      supabaseClient.from('teacher_notification_preferences').select('*').eq('profile_id', userId).maybeSingle()
+    ]);
+    [threadResult, threadMessageResult, notificationResult, preferenceResult].forEach(result => {
+      if (result.error) throw result.error;
+    });
+
     return {
       profile: profileResult.data,
       students: [],
       supportProfiles: [],
       moods: [],
       piaObjectives: [],
-      piaUpdates: []
+      piaUpdates: [],
+      threads: threadResult.data || [],
+      threadMessages: threadMessageResult.data || [],
+      notifications: notificationResult.data || [],
+      preferences: preferenceResult.data || null,
+      messageRecipients: {}
     };
   }
 
-  const [studentResult, supportResult, moodResult, piaObjectiveResult, piaUpdateResult] = await Promise.all([
+  const [studentResult, supportResult, moodResult, piaObjectiveResult, piaUpdateResult, threadResult, threadMessageResult, notificationResult, preferenceResult] = await Promise.all([
     supabaseClient.from('students').select('*,classes(school_year)').in('id', studentIds).order('last_name').order('first_name'),
     supabaseClient.from('student_support_profiles').select('*').in('student_id', studentIds),
     supabaseClient.from('daily_moods').select('student_id,mood,parent_comment,reported_on').in('student_id', studentIds).order('reported_on', { ascending: false }),
     supabaseClient.from('pia_objectives').select('id,student_id,assistant_teacher_id,title,details,active,created_at,updated_at').in('student_id', studentIds).order('updated_at', { ascending: false }),
-    supabaseClient.from('pia_objective_updates').select('id,objective_id,student_id,assistant_teacher_id,rating,comment,created_at,updated_at').in('student_id', studentIds).order('created_at', { ascending: false })
+    supabaseClient.from('pia_objective_updates').select('id,objective_id,student_id,assistant_teacher_id,rating,comment,reported_on,created_at,updated_at').in('student_id', studentIds).order('reported_on', { ascending: false }).order('updated_at', { ascending: false }),
+    supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,assistant_teacher_id,subject_id,title,parent_archived_at,teacher_archived_at,assistant_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name),teacher_profiles:profiles!communication_threads_teacher_id_fkey(first_name,last_name),assistant_profiles:profiles!communication_threads_assistant_teacher_id_fkey(first_name,last_name)').eq('assistant_teacher_id', userId).order('updated_at', { ascending: false }),
+    supabaseClient.from('communication_messages').select('id,thread_id,sender_id,body,read_at,created_at').order('created_at'),
+    supabaseClient.from('user_notifications').select('*').eq('recipient_id', userId).order('created_at', { ascending: false }),
+    supabaseClient.from('teacher_notification_preferences').select('*').eq('profile_id', userId).maybeSingle()
   ]);
 
-  [studentResult, supportResult, moodResult, piaObjectiveResult, piaUpdateResult].forEach(result => {
+  [studentResult, supportResult, moodResult, piaObjectiveResult, piaUpdateResult, threadResult, threadMessageResult, notificationResult, preferenceResult].forEach(result => {
     if (result.error) throw result.error;
   });
+
+  const recipientResults = await Promise.all(
+    studentIds.map(studentId => supabaseClient.rpc('assistant_message_options', { target_student: studentId }))
+  );
+  recipientResults.forEach(result => {
+    if (result.error) throw result.error;
+  });
+
+  const assistantIds = [...new Set([
+    ...(piaObjectiveResult.data || []).map(item => item.assistant_teacher_id),
+    ...(piaUpdateResult.data || []).map(item => item.assistant_teacher_id)
+  ].filter(Boolean))];
+  const assistantProfileResult = assistantIds.length
+    ? await supabaseClient.from('profiles').select('id,first_name,last_name').in('id', assistantIds)
+    : { data: [], error: null };
+  if (assistantProfileResult.error) throw assistantProfileResult.error;
+
+  const assistantNames = Object.fromEntries((assistantProfileResult.data || []).map(profile => [profile.id, `${profile.first_name} ${profile.last_name}`.trim()]));
+  const messageRecipients = Object.fromEntries(studentIds.map((studentId, index) => [studentId, recipientResults[index].data || []]));
 
   return {
     profile: profileResult.data,
     students: studentResult.data || [],
     supportProfiles: supportResult.data || [],
     moods: moodResult.data || [],
-    piaObjectives: piaObjectiveResult.data || [],
-    piaUpdates: piaUpdateResult.data || []
+    piaObjectives: (piaObjectiveResult.data || []).map(item => ({
+      ...item,
+      assistantName: assistantNames[item.assistant_teacher_id] || 'Asistenti'
+    })),
+    piaUpdates: (piaUpdateResult.data || []).map(item => ({
+      ...item,
+      assistantName: assistantNames[item.assistant_teacher_id] || 'Asistenti'
+    })),
+    threads: threadResult.data || [],
+    threadMessages: threadMessageResult.data || [],
+    notifications: notificationResult.data || [],
+    preferences: preferenceResult.data || null,
+    messageRecipients
   };
 }
 
@@ -211,7 +260,7 @@ export async function recordAssistantPiaUpdate({ objectiveId, rating, comment })
 
 export async function fetchTeacherInboxData(userId) {
   const [threadResult, threadMessageResult, inboxNotificationResult] = await Promise.all([
-    supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,subject_id,title,teacher_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name)').eq('teacher_id', userId).order('updated_at', { ascending: false }),
+    supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,assistant_teacher_id,subject_id,title,teacher_archived_at,assistant_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name),assistant_profiles:profiles!communication_threads_assistant_teacher_id_fkey(first_name,last_name)').eq('teacher_id', userId).order('updated_at', { ascending: false }),
     supabaseClient.from('communication_messages').select('id,thread_id,sender_id,body,read_at,created_at').order('created_at'),
     supabaseClient.from('user_notifications').select('*').eq('recipient_id', userId).order('created_at', { ascending: false })
   ]);
@@ -279,6 +328,71 @@ export async function saveTeacherNotificationPreferences({ profileId, email, par
 
 export async function sendTeacherThreadMessage(threadId, message) {
   const { data, error } = await supabaseClient.rpc('send_communication_message', { target_thread: threadId, message_body: message });
+  if (error) throw error;
+  return data;
+}
+
+export async function startAssistantThread({ studentId, recipientId, recipientRole, subjectId = null, title, body }) {
+  const { data, error } = await supabaseClient.rpc('start_assistant_thread', {
+    target_student: studentId,
+    target_recipient: recipientId,
+    target_recipient_role: recipientRole,
+    target_subject: subjectId,
+    thread_title: title,
+    first_message: body
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function sendAssistantThreadMessage(threadId, message) {
+  const { data, error } = await supabaseClient.rpc('send_communication_message', { target_thread: threadId, message_body: message });
+  if (error) throw error;
+  return data;
+}
+
+export async function markAssistantThreadRead(threadId) {
+  const { error } = await supabaseClient.rpc('mark_communication_thread_read', { target_thread: threadId });
+  if (error) throw error;
+}
+
+export async function markAssistantThreadUnread(threadId) {
+  const { error } = await supabaseClient.rpc('mark_communication_thread_unread', { target_thread: threadId });
+  if (error) throw error;
+}
+
+export async function archiveAssistantThread(threadId) {
+  const { error } = await supabaseClient.rpc('archive_communication_thread', { target_thread: threadId });
+  if (error) throw error;
+}
+
+export async function markAssistantNotificationRead(notificationId) {
+  const { error } = await supabaseClient.rpc('mark_user_notification_read', { target_notification: notificationId });
+  if (error) throw error;
+}
+
+export async function markAssistantNotificationUnread(notificationId) {
+  const { error } = await supabaseClient.rpc('mark_user_notification_unread', { target_notification: notificationId });
+  if (error) throw error;
+}
+
+export async function deleteAssistantNotification(notificationId) {
+  const { error } = await supabaseClient.from('user_notifications').delete().eq('id', notificationId);
+  if (error) throw error;
+}
+
+export async function saveAssistantNotificationPreferences({ profileId, email, parentMessageEmails, dailyDigestEmails = false }) {
+  const { data, error } = await supabaseClient
+    .from('teacher_notification_preferences')
+    .upsert({
+      profile_id: profileId,
+      notification_email: email.trim() || null,
+      parent_message_emails: parentMessageEmails,
+      daily_digest_emails: false,
+      updated_at: new Date().toISOString()
+    })
+    .select()
+    .single();
   if (error) throw error;
   return data;
 }

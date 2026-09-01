@@ -492,6 +492,16 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     return formatSqDate(value, { includeTime: true });
   }
 
+  function inboxCounterpartLabel(message) {
+    return message.parent || (message.counterpartRole === 'Asistenti' ? 'Asistenti' : 'Prindi');
+  }
+
+  function inboxSenderLabel(message, threadMessage) {
+    if (threadMessage.sender_id === materialContext.teacherId) return 'Ju';
+    if (message.counterpartRole === 'Asistenti') return 'Asistenti';
+    return 'Prindi';
+  }
+
   function proficiencyOptions(value) {
     const levels = [['', 'Pa vlerësuar'], ['1', '1 · Fillestar'], ['2', '2 · Në zhvillim'], ['3', '3 · Pjesërisht i qëndrueshëm'], ['4', '4 · I qëndrueshëm'], ['5', '5 · Zotërim i avancuar']];
     const normalized = String(value ?? '');
@@ -880,7 +890,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     });
     list.innerHTML = '';
     if (!visible.length) {
-      list.innerHTML = `<p class="teacher-message-empty">${unreadOnly ? 'Nuk ka mesazhe të palexuara.' : 'Nuk ka mesazhe nga prindërit.'}</p>`;
+      list.innerHTML = `<p class="teacher-message-empty">${unreadOnly ? 'Nuk ka mesazhe të palexuara.' : 'Nuk ka ende biseda ose njoftime.'}</p>`;
       return;
     }
     visible.forEach(message => {
@@ -888,7 +898,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       button.type = 'button';
       button.className = `teacher-message-preview${message.unread ? '' : ' read'}`;
       button.classList.toggle('active', message.id === activeMessageId);
-      button.innerHTML = `<span class="unread-dot"></span><div><strong>${escapeHtml(message.parent)}</strong><p>${escapeHtml(message.subject)}</p><p>${escapeHtml(message.student)}</p></div><time>${escapeHtml(formatInboxTime(message.time))}</time>`;
+      button.innerHTML = `<span class="unread-dot"></span><div><strong>${escapeHtml(inboxCounterpartLabel(message))}</strong><p>${escapeHtml(message.subject)}</p><p>${escapeHtml(message.student)}</p></div><time>${escapeHtml(formatInboxTime(message.time))}</time>`;
       button.addEventListener('click', () => openMessage(message));
       list.appendChild(button);
     });
@@ -898,8 +908,8 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     activeMessageId = message.id;
     renderMessages();
     const detail = document.getElementById('teacherMessageDetail');
-    const conversation = message.type === 'thread' ? message.messages.map(item => `<p class="teacher-saved-reply${item.sender_id === materialContext.teacherId ? ' teacher-own-message' : ''}"><strong>${item.sender_id === materialContext.teacherId ? 'Ju' : 'Prindi'}</strong>${escapeHtml(item.body)}<time>${escapeHtml(formatSqDate(item.created_at, { includeTime: true }))}</time></p>`).join('') : `<p>${escapeHtml(message.body)}</p>`;
-    detail.innerHTML = `<button class="teacher-back-button teacher-message-mobile-back" type="button">← Kthehu</button><div class="teacher-message-heading"><div class="teacher-message-heading-row"><div><h2>${escapeHtml(message.subject)}</h2><p>${escapeHtml(message.parent)} · ${escapeHtml(message.student)}${message.context ? ` · ${escapeHtml(message.context)}` : ''}</p></div><div class="teacher-message-actions"><button type="button" data-message-action="toggle-read" data-action="${message.unread ? 'read' : 'unread'}">${message.unread ? 'Shëno si të lexuar' : 'Shëno si të palexuar'}</button><button class="danger" type="button" data-message-action="delete">Fshi</button></div></div><p class="teacher-message-action-status" aria-live="polite"></p></div><div class="teacher-message-body">${conversation}</div>${message.type === 'thread' ? '<form class="teacher-reply-box"><label class="sr-only" for="teacherReplyText">Përgjigjja</label><textarea id="teacherReplyText" maxlength="2000" placeholder="Shkruani përgjigjen..."></textarea><p class="teacher-message-action-status" aria-live="polite"></p><div><button class="teacher-primary-button" type="submit">Dërgo përgjigjen</button></div></form>' : ''}`;
+    const conversation = message.type === 'thread' ? message.messages.map(item => `<p class="teacher-saved-reply${item.sender_id === materialContext.teacherId ? ' teacher-own-message' : ''}"><strong>${escapeHtml(inboxSenderLabel(message, item))}</strong>${escapeHtml(item.body)}<time>${escapeHtml(formatSqDate(item.created_at, { includeTime: true }))}</time></p>`).join('') : `<p>${escapeHtml(message.body)}</p>`;
+    detail.innerHTML = `<button class="teacher-back-button teacher-message-mobile-back" type="button">← Kthehu</button><div class="teacher-message-heading"><div class="teacher-message-heading-row"><div><h2>${escapeHtml(message.subject)}</h2><p>${escapeHtml(inboxCounterpartLabel(message))} · ${escapeHtml(message.student)}${message.context ? ` · ${escapeHtml(message.context)}` : ''}</p></div><div class="teacher-message-actions"><button type="button" data-message-action="toggle-read" data-action="${message.unread ? 'read' : 'unread'}">${message.unread ? 'Shëno si të lexuar' : 'Shëno si të palexuar'}</button><button class="danger" type="button" data-message-action="delete">Fshi</button></div></div><p class="teacher-message-action-status" aria-live="polite"></p></div><div class="teacher-message-body">${conversation}</div>${message.type === 'thread' ? '<form class="teacher-reply-box"><label class="sr-only" for="teacherReplyText">Përgjigjja</label><textarea id="teacherReplyText" maxlength="2000" placeholder="Shkruani përgjigjen..."></textarea><p class="teacher-message-action-status" aria-live="polite"></p><div><button class="teacher-primary-button" type="submit">Dërgo përgjigjen</button></div></form>' : ''}`;
     detail.classList.add('mobile-open');
     detail.querySelector('.teacher-message-mobile-back').addEventListener('click', () => detail.classList.remove('mobile-open'));
     detail.querySelector('[data-message-action="toggle-read"]')?.addEventListener('click', async event => {

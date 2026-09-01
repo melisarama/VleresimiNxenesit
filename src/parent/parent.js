@@ -347,6 +347,17 @@ export function initializeParentWorkflow({ onLogout } = {}) {
     return option ? `${option.teacher_name} · ${option.subject_name}` : thread.subjects?.name || 'Mesimdhenesi';
   }
 
+  function teacherLabel(thread) {
+    if (thread.assistant_teacher_id) {
+      const assistantName = `${thread.assistant_profiles?.first_name || ''} ${thread.assistant_profiles?.last_name || ''}`.trim();
+      return assistantName || 'Asistenti';
+    }
+    const option = workspace.teacherOptions.find(item => item.teacher_id === thread.teacher_id && item.subject_id === thread.subject_id);
+    if (option) return `${option.teacher_name} - ${option.subject_name}`;
+    const teacherName = `${thread.teacher_profiles?.first_name || ''} ${thread.teacher_profiles?.last_name || ''}`.trim();
+    return teacherName ? `${teacherName}${thread.subjects?.name ? ` - ${thread.subjects.name}` : ''}` : (thread.subjects?.name || 'Mesimdhenesi');
+  }
+
   function threadMessages(threadId) {
     return workspace.messages.filter(item => item.thread_id === threadId);
   }

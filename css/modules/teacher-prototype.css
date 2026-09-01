@@ -1199,3 +1199,458 @@
     width:100%;
   }
 }
+
+#assistantTeacherPrototype .teacher-header-actions [data-open-assistant-messages] {
+  display:grid;
+  place-items:center;
+  min-width:42px;
+  min-height:42px;
+  border:1px solid #c8d7ef;
+  border-radius:999px;
+  color:#173d75;
+  background:#fff;
+  font-size:18px;
+  font-weight:800;
+  position:relative;
+}
+
+#assistantTeacherPrototype .teacher-header-actions [data-open-assistant-messages] > span {
+  position:absolute;
+  top:-4px;
+  right:-3px;
+  min-width:18px;
+  min-height:18px;
+  padding:0 5px;
+  border-radius:999px;
+  color:#fff;
+  background:#214f97;
+  font-size:10px;
+  line-height:18px;
+}
+
+#assistantTeacherPrototype .teacher-mobile-nav {
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
+.assistant-message-toolbar {
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.assistant-message-recipient-note {
+  margin:0;
+  color:#587094;
+  font-size:12px;
+}
+
+.assistant-pia-shell {
+  display:grid;
+  gap:18px;
+}
+
+.assistant-pia-header {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(220px,.42fr);
+  gap:16px;
+  align-items:end;
+  padding:22px 24px;
+  border:1px solid #d2ddf0;
+  border-radius:22px;
+  background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(237,244,255,.94));
+  box-shadow:0 20px 36px rgba(25,52,101,.07);
+}
+
+.assistant-pia-header h2 {
+  margin-top:10px;
+  font-size:30px;
+  line-height:1.05;
+}
+
+.assistant-pia-kicker {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  color:#214f97;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.assistant-pia-kicker::before {
+  content:"";
+  width:24px;
+  height:2px;
+  border-radius:999px;
+  background:linear-gradient(90deg,#214f97,#79a4df);
+}
+
+.assistant-pia-student-switcher,
+.assistant-pia-form label,
+.assistant-pia-update-form label {
+  display:grid;
+  gap:7px;
+  color:#32405e;
+  font-size:12px;
+  font-weight:750;
+}
+
+.assistant-pia-student-switcher {
+  padding:14px 16px;
+  border:1px solid #d7e3f4;
+  border-radius:16px;
+  background:#fff;
+}
+
+.assistant-pia-student-switcher select,
+.assistant-pia-form input,
+.assistant-pia-form textarea,
+.assistant-pia-update-form select,
+.assistant-pia-update-form textarea {
+  min-height:44px;
+  padding:10px 12px;
+  border:1px solid #ccdaef;
+  border-radius:12px;
+  color:#1f2e4c;
+  background:#fff;
+}
+
+.assistant-pia-form textarea,
+.assistant-pia-update-form textarea {
+  min-height:108px;
+  resize:vertical;
+}
+
+.assistant-pia-summary {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+}
+
+.assistant-pia-summary article {
+  display:grid;
+  gap:7px;
+  padding:18px;
+  border:1px solid #d7e1f2;
+  border-radius:18px;
+  background:#fff;
+}
+
+.assistant-pia-summary span,
+.assistant-pia-row-meta span {
+  color:#214f97;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.assistant-pia-summary strong {
+  font-size:15px;
+}
+
+.assistant-pia-stage {
+  display:grid;
+  gap:18px;
+  padding:22px;
+  border:1px solid #d6e1f2;
+  border-radius:22px;
+  background:rgba(255,255,255,.95);
+  box-shadow:0 18px 34px rgba(28,55,102,.06);
+}
+
+.assistant-pia-stage-head,
+.assistant-pia-update-head,
+.assistant-pia-row-main,
+.assistant-pia-row-footer,
+.assistant-pia-row-actions,
+.assistant-pia-list-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.assistant-pia-stage-head h3,
+.assistant-pia-update-head h3,
+.assistant-pia-list-head h3 {
+  margin-top:8px;
+}
+
+.assistant-pia-schoolday-note,
+.assistant-pia-list-head span,
+.assistant-pia-row-meta small {
+  color:#5d6e8a;
+  font-size:11px;
+}
+
+.assistant-pia-form,
+.assistant-pia-update-form {
+  display:grid;
+  gap:14px;
+}
+
+.assistant-pia-list-block {
+  display:grid;
+  gap:14px;
+}
+
+.assistant-pia-list {
+  display:grid;
+  gap:12px;
+}
+
+.assistant-pia-row {
+  display:grid;
+  gap:14px;
+  padding:18px;
+  border:1px solid #d2ddf0;
+  border-radius:18px;
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(244,248,255,.98));
+}
+
+.assistant-pia-row.active {
+  border-color:#9fb6db;
+  box-shadow:0 0 0 1px rgba(33,79,151,.12);
+}
+
+.assistant-pia-row-main {
+  align-items:flex-start;
+}
+
+.assistant-pia-row-copy {
+  min-width:0;
+  display:grid;
+  gap:8px;
+}
+
+.assistant-pia-row-copy p,
+.assistant-pia-row-note {
+  color:#52627e;
+  line-height:1.6;
+}
+
+.assistant-pia-row-title {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.assistant-pia-row-meta {
+  min-width:140px;
+  display:grid;
+  gap:6px;
+  justify-items:end;
+  text-align:right;
+}
+
+.assistant-pia-badge {
+  display:inline-flex;
+  align-items:center;
+  min-height:28px;
+  padding:4px 10px;
+  border-radius:999px;
+  color:#173d75;
+  background:#e9f2ff;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+
+.assistant-pia-badge.muted {
+  color:#6b7588;
+  background:#eef1f6;
+}
+
+.assistant-pia-row-footer {
+  align-items:center;
+}
+
+.assistant-pia-row-note {
+  min-width:0;
+  flex:1;
+}
+
+.assistant-pia-row-actions {
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+#assistantTeacherPrototype .assistant-pia-row-actions button {
+  min-height:38px;
+  padding:8px 12px;
+  border:1px solid #c8d7ef;
+  border-radius:12px;
+  color:#173d75;
+  background:#fff;
+  font-size:12px;
+  font-weight:750;
+}
+
+#assistantTeacherPrototype .assistant-pia-row-actions .assistant-pia-primary-action {
+  color:#fff;
+  background:linear-gradient(145deg,#214f97,#173d75);
+  border:0;
+}
+
+.assistant-pia-achievement-menu {
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  padding-top:4px;
+}
+
+#assistantTeacherPrototype .assistant-pia-achievement-menu button,
+#assistantTeacherPrototype .assistant-pia-update-head button {
+  min-height:36px;
+  padding:7px 12px;
+  border:1px solid #c8d7ef;
+  border-radius:12px;
+  color:#173d75;
+  background:#fff;
+  font-size:12px;
+  font-weight:750;
+}
+
+.assistant-pia-update-form {
+  padding:18px;
+  border:1px solid #d7e3f4;
+  border-radius:18px;
+  background:#eef4ff;
+}
+
+.assistant-pia-dialog {
+  width:min(560px,calc(100vw - 24px));
+  border:1px solid #d6e1f2;
+  border-radius:22px;
+  background:#fff;
+  box-shadow:0 28px 60px rgba(20,43,85,.2);
+}
+
+.assistant-pia-dialog::backdrop {
+  background:rgba(21,39,72,.42);
+  backdrop-filter:blur(4px);
+}
+
+.assistant-pia-dialog-form {
+  display:grid;
+  gap:16px;
+  padding:24px;
+}
+
+.assistant-pia-dialog-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.assistant-pia-dialog-head h2 {
+  margin-top:8px;
+  font-size:24px;
+  line-height:1.15;
+}
+
+#assistantTeacherPrototype .assistant-pia-dialog-head button,
+.assistant-pia-dialog-actions button {
+  min-height:40px;
+  padding:8px 12px;
+  border:1px solid #c8d7ef;
+  border-radius:12px;
+  color:#173d75;
+  background:#fff;
+  font-size:12px;
+  font-weight:750;
+}
+
+.assistant-pia-dialog-copy {
+  margin:0;
+  color:#52627e;
+  line-height:1.65;
+}
+
+.assistant-pia-dialog-form label {
+  display:grid;
+  gap:7px;
+  color:#32405e;
+  font-size:12px;
+  font-weight:750;
+}
+
+.assistant-pia-dialog-form select,
+.assistant-pia-dialog-form textarea {
+  min-height:44px;
+  padding:10px 12px;
+  border:1px solid #ccdaef;
+  border-radius:12px;
+  color:#1f2e4c;
+  background:#fff;
+}
+
+.assistant-pia-dialog-form textarea {
+  min-height:132px;
+  resize:vertical;
+}
+
+.assistant-pia-dialog-actions {
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+}
+
+@media (max-width:800px) {
+  #assistantTeacherPrototype .teacher-header-actions [data-open-assistant-messages] {
+    display:none;
+  }
+
+  .assistant-message-toolbar,
+  .assistant-pia-stage-head,
+  .assistant-pia-update-head,
+  .assistant-pia-row-main,
+  .assistant-pia-row-footer,
+  .assistant-pia-row-actions,
+  .assistant-pia-list-head {
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .assistant-pia-header,
+  .assistant-pia-summary {
+    grid-template-columns:1fr;
+  }
+
+  .assistant-pia-header,
+  .assistant-pia-stage,
+  .assistant-pia-row,
+  .assistant-pia-update-form,
+  .assistant-pia-dialog-form {
+    padding:18px;
+    border-radius:18px;
+  }
+
+  .assistant-pia-dialog {
+    width:min(100vw - 16px,560px);
+    border-radius:18px;
+  }
+
+  .assistant-pia-row-meta {
+    min-width:0;
+    justify-items:start;
+    text-align:left;
+  }
+
+  #assistantTeacherPrototype .assistant-pia-row-actions button,
+  #assistantTeacherPrototype .assistant-pia-achievement-menu button,
+  #assistantTeacherPrototype .assistant-pia-update-head button {
+    width:100%;
+  }
+
+  .assistant-pia-dialog-head,
+  .assistant-pia-dialog-actions {
+    flex-direction:column;
+    align-items:stretch;
+  }
+}
