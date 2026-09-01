@@ -6,15 +6,9 @@ export async function fetchTeacherDashboardData(userId) {
     subjectResult,
     classAssignmentResult,
     studentAssignmentResult,
-    studentResult,
-    supportResult,
-    chapterResult,
-    gradeResult,
-    moodResult,
     threadResult,
     threadMessageResult,
     inboxNotificationResult,
-    finalGradeResult,
     preferenceResult,
     periodResult
   ] = await Promise.all([
@@ -22,25 +16,88 @@ export async function fetchTeacherDashboardData(userId) {
     supabaseClient.from('teacher_subjects').select('subject_id,subjects(id,name)').eq('teacher_id', userId),
     supabaseClient.from('teacher_classes').select('class_id,subject_id,classes(id,name,school_year),subjects(id,name)').eq('teacher_id', userId),
     supabaseClient.from('teacher_students').select('student_id').eq('teacher_id', userId),
-    supabaseClient.from('students').select('*,classes(school_year)'),
-    supabaseClient.from('student_support_profiles').select('*'),
-    supabaseClient.from('chapters').select('id,name,subject_id,target_score,subjects(id,name)').eq('active', true),
-    supabaseClient.from('grades').select('id,score,parent_message,student_id,chapter_id,subject_id,academic_period_id,graded_at,updated_at,chapters(id,name),subjects(id,name)'),
-    supabaseClient.from('daily_moods').select('student_id,mood,parent_comment,reported_on').order('reported_on', { ascending: false }),
     supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,subject_id,title,teacher_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name)').eq('teacher_id', userId).order('updated_at', { ascending: false }),
     supabaseClient.from('communication_messages').select('id,thread_id,sender_id,body,read_at,created_at').order('created_at'),
     supabaseClient.from('user_notifications').select('*').eq('recipient_id', userId).order('created_at', { ascending: false }),
-    supabaseClient.from('final_grades').select('id,student_id,teacher_id,subject_id,academic_period_id,grade,parent_message,published_at,updated_at'),
     supabaseClient.from('teacher_notification_preferences').select('*').eq('profile_id', userId).maybeSingle(),
     supabaseClient.from('academic_periods').select('id,name,school_year,starts_on,ends_on,status').order('starts_on', { ascending: false })
   ]);
+
+  [
+    profileResult,
+    subjectResult,
+    classAssignmentResult,
+    studentAssignmentResult,
+    threadResult,
+    threadMessageResult,
+    inboxNotificationResult,
+    preferenceResult,
+    periodResult
+  ].forEach(result => {
+    if (result.error) throw result.error;
+  });
+
+  const directStudentIds = [...new Set((studentAssignmentResult.data || []).map(item => item.student_id).filter(Boolean))];
+  const classIds = [...new Set((classAssignmentResult.data || []).map(item => item.class_id).filter(Boolean))];
+  const subjectIds = [...new Set([
+    ...(subjectResult.data || []).map(item => item.subject_id),
+    ...(classAssignmentResult.data || []).map(item => item.subject_id)
+  ].filter(Boolean))];
+
+  const rawStudentResult = await supabaseClient.from('students').select('*,classes(school_year)').order('last_name').order('first_name');
+  if (rawStudentResult.error) throw rawStudentResult.error;
+
+  const visibleStudents = (rawStudentResult.data || []).filter(student =>
+    directStudentIds.includes(student.id) || (student.class_id && classIds.includes(student.class_id))
+  );
+  const studentIds = visibleStudents.map(student => student.id);
+  const emptyArrayResult = { data: [], error: null };
+
+  let supportResult = emptyArrayResult;
+  let chapterResult = emptyArrayResult;
+  let gradeResult = emptyArrayResult;
+  let moodResult = emptyArrayResult;
+  let finalGradeResult = emptyArrayResult;
+  let piaObjectiveResult = emptyArrayResult;
+  let piaUpdateResult = emptyArrayResult;
+  let assistantProfileResult = emptyArrayResult;
+
+  if (studentIds.length) {
+    const scopedResults = await Promise.all([
+      supabaseClient.from('student_support_profiles').select('*').in('student_id', studentIds),
+      subjectIds.length
+        ? supabaseClient.from('chapters').select('id,name,subject_id,target_score,subjects(id,name)').eq('active', true).in('subject_id', subjectIds)
+        : Promise.resolve(emptyArrayResult),
+      supabaseClient.from('grades').select('id,score,parent_message,student_id,chapter_id,subject_id,academic_period_id,graded_at,updated_at,chapters(id,name),subjects(id,name)').in('student_id', studentIds),
+      supabaseClient.from('daily_moods').select('student_id,mood,parent_comment,reported_on').in('student_id', studentIds).order('reported_on', { ascending: false }),
+      supabaseClient.from('final_grades').select('id,student_id,teacher_id,subject_id,academic_period_id,grade,parent_message,published_at,updated_at').in('student_id', studentIds),
+      supabaseClient.from('pia_objectives').select('id,student_id,assistant_teacher_id,title,details,active,created_at,updated_at').in('student_id', studentIds).order('updated_at', { ascending: false }),
+      supabaseClient.from('pia_objective_updates').select('id,objective_id,student_id,assistant_teacher_id,rating,comment,created_at,updated_at').in('student_id', studentIds).order('created_at', { ascending: false })
+    ]);
+
+    [supportResult, chapterResult, gradeResult, moodResult, finalGradeResult, piaObjectiveResult, piaUpdateResult] = scopedResults;
+    scopedResults.forEach(result => {
+      if (result.error) throw result.error;
+    });
+
+    const assistantIds = [...new Set([
+      ...(piaObjectiveResult.data || []).map(item => item.assistant_teacher_id),
+      ...(piaUpdateResult.data || []).map(item => item.assistant_teacher_id)
+    ].filter(Boolean))];
+    assistantProfileResult = assistantIds.length
+      ? await supabaseClient.from('profiles').select('id,first_name,last_name').in('id', assistantIds)
+      : emptyArrayResult;
+    if (assistantProfileResult.error) throw assistantProfileResult.error;
+  }
+
+  const assistantNames = Object.fromEntries((assistantProfileResult.data || []).map(profile => [profile.id, `${profile.first_name} ${profile.last_name}`.trim()]));
 
   return {
     profileResult,
     subjectResult,
     classAssignmentResult,
     studentAssignmentResult,
-    studentResult,
+    studentResult: { data: visibleStudents, error: null },
     supportResult,
     chapterResult,
     gradeResult,
@@ -50,7 +107,21 @@ export async function fetchTeacherDashboardData(userId) {
     inboxNotificationResult,
     finalGradeResult,
     preferenceResult,
-    periodResult
+    periodResult,
+    piaObjectiveResult: {
+      data: (piaObjectiveResult.data || []).map(item => ({
+        ...item,
+        assistantName: assistantNames[item.assistant_teacher_id] || 'Asistenti'
+      })),
+      error: piaObjectiveResult.error
+    },
+    piaUpdateResult: {
+      data: (piaUpdateResult.data || []).map(item => ({
+        ...item,
+        assistantName: assistantNames[item.assistant_teacher_id] || 'Asistenti'
+      })),
+      error: piaUpdateResult.error
+    }
   };
 }
 
@@ -242,30 +313,18 @@ export async function deleteTeacherNotification(notificationId) {
   if (error) throw error;
 }
 
-export async function requestTeacherSupport({ message, history = [] }) {
+export async function requestTeacherSupport({ message, history = [], studentContext = null }) {
   const payload = {
     message: String(message || ''),
     history: Array.isArray(history) ? history.slice(-8).map(item => ({
       role: item.role === 'assistant' ? 'assistant' : 'user',
       content: String(item.content || '').trim()
-    })) : []
+    })) : [],
+    studentContext: studentContext && typeof studentContext === 'object' ? studentContext : null
   };
-  const fallback = {
-    answer: 'Filloni me qetesi, nje udhezim te vetem dhe nje hap te vogel qe nxenesi mund ta ndjeke menjehere.',
-    actions: [
-      'Flisni me ze te qete dhe jepni nje udhezim te shkurter.',
-      'Ofroni nje zgjedhje te thjeshte ose nje detyre te vogel.',
-      'Jepini pak hapesire dhe vezhgoni nese qetesohet.'
-    ],
-    observationCue: 'Vezhgoni nese nxenesi reagon me me shume qetesi pas udhezimit te shkurter.',
-    escalation: 'Nese situata perkeqesohet ose ka rrezik, kerkoni ndihme sipas protokollit te shkolles.'
-  };
-  try {
-    const result = await supabaseClient.functions.invoke('support', { body: payload });
-    if (result.error) return fallback;
-    if (result.data && result.data.error) return fallback;
-    return result.data || fallback;
-  } catch {
-    return fallback;
-  }
+  const result = await supabaseClient.functions.invoke('support', { body: payload });
+  if (result.error) throw result.error;
+  if (result.data?.error) throw new Error(result.data.error);
+  if (!result.data?.answer) throw new Error('EMPTY_SUPPORT_RESPONSE');
+  return result.data;
 }

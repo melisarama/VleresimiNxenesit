@@ -334,7 +334,7 @@
 
       <main class="teacher-prototype-main">
         <section class="teacher-prototype-view active" data-teacher-panel="students">
-          <div class="teacher-view-tools"><label class="teacher-search"><span aria-hidden="true">⌕</span><input id="teacherStudentSearch" type="search" placeholder="Kërko nxënësin" aria-label="Kërko nxënësin"></label><span class="teacher-student-total" id="teacherPrototypeStudentTotal">0 nxënës</span></div>
+          <div class="teacher-view-tools"><div class="teacher-student-filters"><label class="teacher-search"><span aria-hidden="true">⌕</span><input id="teacherStudentSearch" type="search" placeholder="Kërko nxënësin" aria-label="Kërko nxënësin"></label><label class="teacher-class-filter"><span>Klasa</span><select id="teacherStudentClassFilter" aria-label="Filtro sipas klasës"><option value="all">Të gjitha klasat</option></select></label></div><span class="teacher-student-total" id="teacherPrototypeStudentTotal">0 nxënës</span></div>
           <div class="teacher-class-groups" id="teacherClassGroups"></div>
         </section>
 
@@ -344,6 +344,7 @@
           <div class="teacher-folder-actions">
             <button type="button" data-folder-prototype="mood"><span class="folder-action-symbol">☼</span><span><strong>Humori ditor dhe historiku</strong><small>Njoftimet e prindit dhe ndryshimet ditore</small></span><span>›</span></button>
             <button type="button" data-folder-prototype="preferences"><span class="folder-action-symbol">◌</span><span><strong>Preferencat dhe komunikimi</strong><small>Udhëzime praktike për mësim dhe komunikim</small></span><span>›</span></button>
+            <button type="button" data-folder-prototype="pia"><span class="folder-action-symbol">◎</span><span><strong>PIA</strong><small>Objektivat dhe përditësimet e asistentit vetëm për lexim</small></span><span>›</span></button>
             <button type="button" data-folder-prototype="assessments"><span class="folder-action-symbol">✓</span><span><strong>Vlerësimet</strong><small>Njohuritë sipas kapitujve dhe nota përfundimtare</small></span><span>›</span></button>
           </div>
         </section>

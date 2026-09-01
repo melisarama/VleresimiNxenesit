@@ -13,7 +13,7 @@
     "db:push": "supabase db push",
     "db:push:seed": "supabase db push --include-seed",
     "db:reset:local": "supabase db reset",
-    "functions:serve": "supabase functions serve support --env-file .env",
+    "functions:serve": "supabase functions serve --env-file .env",
     "functions:serve:email": "supabase functions serve email-dispatch --env-file .env --no-verify-jwt",
     "functions:deploy": "supabase functions deploy support",
     "functions:deploy:admin": "supabase functions deploy admin-users",

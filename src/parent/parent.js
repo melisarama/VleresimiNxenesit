@@ -14,7 +14,7 @@ import {
   startParentTeacherThread
 } from '../services/parentService.js';
 import { subscribeToUserNotifications } from '../services/realtimeService.js';
-import { todayIso } from '../utils/dates.js';
+import { formatSqDate, todayIso } from '../utils/dates.js';
 import { escapeHtml } from '../utils/html.js';
 
 const viewLabels = {
@@ -33,8 +33,7 @@ function initials(name) {
 }
 
 function formatDate(value, withTime = false) {
-  if (!value) return '';
-  return new Intl.DateTimeFormat('sq-AL', withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }).format(new Date(value));
+  return formatSqDate(value, { includeTime: withTime });
 }
 
 function notificationIcon(kind) {
@@ -145,7 +144,7 @@ export function initializeParentWorkflow({ onLogout } = {}) {
     document.getElementById('parentChildInitials').textContent = initials(child.name);
     document.getElementById('parentChildClass').textContent = child.className;
     document.getElementById('parentMoodQuestion').textContent = `Si eshte ${child.firstName} sot?`;
-    document.getElementById('parentTodayDate').textContent = new Intl.DateTimeFormat('sq-AL', { dateStyle: 'full' }).format(new Date());
+    document.getElementById('parentTodayDate').textContent = formatSqDate(new Date(), { weekday: true });
   }
 
   function renderMoodChoices() {

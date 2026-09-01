@@ -8,6 +8,22 @@ type SupportMessage = {
 type SupportRequest = {
   message?: string;
   history?: SupportMessage[];
+  studentContext?: {
+    className?: string;
+    supportSummary?: string;
+    preferredMode?: string;
+    communicationMethod?: string;
+    learningPreferences?: string[];
+    accessibilityInformation?: string;
+    additionalNotes?: string;
+    pia?: {
+      objectives?: Array<{
+        title?: string;
+        status?: string;
+        latestComment?: string;
+      }>;
+    };
+  } | null;
 };
 
 type SupportResponse = {
@@ -15,6 +31,11 @@ type SupportResponse = {
   actions: string[];
   observationCue: string;
   escalation: string;
+  meta?: {
+    source: "gemini" | "fallback";
+    model?: string;
+    reason?: string;
+  };
 };
 
 const corsHeaders = {
@@ -26,6 +47,8 @@ const corsHeaders = {
 const SYSTEM_PROMPT = [
   "Ti je asistent pedagogjik per mesimdhenes ne Kosove.",
   "Pergjigju vetem ne shqip.",
+  "Jep nje pergjigje te qarte, natyrale dhe pa perseritje mekanike te pyetjes se mesimdhenesit.",
+  "Perdor vetem kontekstin e nxenesit qe te jepet dhe mos shpik detaje qe mungojne.",
   "Jep nje pergjigje te shkurter, tre hapa praktike, nje gje per vezhgim dhe nje keshille per eskalim.",
   "Mos jep diagnoza ose keshilla mjekesore.",
   "Kthe vetem nje objekt JSON me fushat: answer, actions, observationCue, escalation.",
@@ -54,7 +77,7 @@ function supabasePublishableKey() {
 
 function candidateModels() {
   const configured = optionalEnv("GEMINI_MODEL");
-  const defaults = ["gemini-2.5-flash", "gemini-3.6-flash"];
+  const defaults = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
   return [configured, ...defaults].filter(Boolean).filter((value, index, array) => array.indexOf(value) === index);
 }
 
@@ -105,6 +128,42 @@ function buildPrompt(input: SupportRequest) {
     sanitize(input.message || "", 1500),
   ];
 
+  const context = input.studentContext;
+  if (context && typeof context === "object") {
+    const contextLines = [
+      context.className ? `Klasa: ${sanitize(context.className, 120)}` : "",
+      context.supportSummary ? `Permbledhja e mbeshtetjes: ${sanitize(context.supportSummary, 300)}` : "",
+      context.preferredMode ? `Menyra e preferuar: ${sanitize(context.preferredMode, 200)}` : "",
+      context.communicationMethod ? `Komunikimi: ${sanitize(context.communicationMethod, 200)}` : "",
+      Array.isArray(context.learningPreferences) && context.learningPreferences.length
+        ? `Preferencat e te nxenit: ${context.learningPreferences.map((item) => sanitize(item, 80)).filter(Boolean).join(", ")}`
+        : "",
+      context.accessibilityInformation ? `Informacion i dobishem: ${sanitize(context.accessibilityInformation, 300)}` : "",
+      context.additionalNotes ? `Shenime shtese: ${sanitize(context.additionalNotes, 300)}` : "",
+    ].filter(Boolean);
+
+    const piaLines = (context.pia?.objectives || [])
+      .slice(0, 3)
+      .map((objective, index) => {
+        const partsForObjective = [
+          objective.title ? sanitize(objective.title, 120) : `Objektivi ${index + 1}`,
+          objective.status ? `statusi: ${sanitize(objective.status, 80)}` : "",
+          objective.latestComment ? `komenti i fundit: ${sanitize(objective.latestComment, 180)}` : "",
+        ].filter(Boolean);
+        return partsForObjective.join(" | ");
+      })
+      .filter(Boolean);
+
+    if (contextLines.length || piaLines.length) {
+      parts.push("Konteksti i nxenesit:");
+      if (contextLines.length) parts.push(...contextLines);
+      if (piaLines.length) {
+        parts.push("PIA:");
+        parts.push(...piaLines);
+      }
+    }
+  }
+
   const history = normalizeHistory(input.history);
   if (history.length) {
     parts.push("Biseda e fundit:");
@@ -118,12 +177,9 @@ function buildPrompt(input: SupportRequest) {
   return parts.join("\n");
 }
 
-function fallbackSupport(message = ""): SupportResponse {
-  const shortMessage = sanitize(message, 200);
+function fallbackSupport(reason = ""): SupportResponse {
   return {
-    answer: shortMessage
-      ? `Per kete situate, filloni me qetesi dhe nje udhezim te thjeshte: ${shortMessage}`
-      : "Filloni me qetesi, nje udhezim te thjeshte dhe nje hap te vogel qe nxenesi mund ta ndjeke menjehere.",
+    answer: "Filloni me nje ton te qete, jepni nje hap te vogel dhe mbajeni udhezimin sa me te thjeshte qe nxenesi ta ndjeke menjehere.",
     actions: [
       "Flisni me ze te qete dhe jepni nje udhezim te vetem te shkurter.",
       "Ofroni nje zgjedhje te thjeshte ose nje hap te vogel qe nxenesi mund ta beje tani.",
@@ -131,12 +187,16 @@ function fallbackSupport(message = ""): SupportResponse {
     ],
     observationCue: "Vezhgoni nese qetesohet pas udhezimit te shkurter dhe nese e pranon zgjedhjen e ofruar.",
     escalation: "Nese sjellja perkeqesohet ose ka rrezik, ndiqni protokollin e shkolles dhe kerkoni ndihme shtese.",
+    meta: {
+      source: "fallback",
+      reason: reason || "AI_UNAVAILABLE",
+    },
   };
 }
 
-function normalizeSupportResponse(payload: unknown, message = ""): SupportResponse {
+function normalizeSupportResponse(payload: unknown, model: string, fallbackReason = ""): SupportResponse {
   const parsed = payload as Partial<SupportResponse> | null;
-  if (!parsed || typeof parsed !== "object") return fallbackSupport(message);
+  if (!parsed || typeof parsed !== "object") return fallbackSupport(fallbackReason || "INVALID_JSON");
 
   const answer = typeof parsed.answer === "string" ? parsed.answer.trim() : "";
   const actions = Array.isArray(parsed.actions)
@@ -145,10 +205,10 @@ function normalizeSupportResponse(payload: unknown, message = ""): SupportRespon
   const observationCue = typeof parsed.observationCue === "string" ? parsed.observationCue.trim() : "";
   const escalation = typeof parsed.escalation === "string" ? parsed.escalation.trim() : "";
 
-  if (!answer || !observationCue || !escalation) return fallbackSupport(message);
+  if (!answer || !observationCue || !escalation) return fallbackSupport(fallbackReason || "MISSING_FIELDS");
 
   while (actions.length < 3) {
-    actions.push(fallbackSupport(message).actions[actions.length]);
+    actions.push(fallbackSupport(fallbackReason).actions[actions.length]);
   }
 
   return {
@@ -156,6 +216,10 @@ function normalizeSupportResponse(payload: unknown, message = ""): SupportRespon
     actions,
     observationCue,
     escalation,
+    meta: {
+      source: "gemini",
+      model,
+    },
   };
 }
 
@@ -186,9 +250,22 @@ async function generateSupport(input: SupportRequest): Promise<SupportResponse> 
           parts: [{ text: buildPrompt(input) }],
         }],
         generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 800,
+          temperature: 0.25,
+          maxOutputTokens: 700,
           responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              answer: { type: "STRING" },
+              actions: {
+                type: "ARRAY",
+                items: { type: "STRING" },
+              },
+              observationCue: { type: "STRING" },
+              escalation: { type: "STRING" },
+            },
+            required: ["answer", "actions", "observationCue", "escalation"],
+          },
         },
       }),
     });
@@ -197,7 +274,7 @@ async function generateSupport(input: SupportRequest): Promise<SupportResponse> 
       const errorText = await response.text();
       console.error("GEMINI_ERROR", model, response.status, errorText);
       if (response.status === 404) continue;
-      throw new Error(`GEMINI_${response.status}`);
+      return fallbackSupport(`GEMINI_${response.status}`);
     }
 
     const payload = await response.json() as {
@@ -210,17 +287,17 @@ async function generateSupport(input: SupportRequest): Promise<SupportResponse> 
       .join("\n")
       .trim();
 
-    if (!text) return fallbackSupport(input.message || "");
+    if (!text) return fallbackSupport("EMPTY_TEXT");
 
     try {
-      return normalizeSupportResponse(JSON.parse(extractJsonObject(text)), input.message || "");
+      return normalizeSupportResponse(JSON.parse(extractJsonObject(text)), model);
     } catch (error) {
       console.error("GEMINI_PARSE_ERROR", error);
-      return fallbackSupport(input.message || "");
+      return fallbackSupport("PARSE_ERROR");
     }
   }
 
-  return fallbackSupport(input.message || "");
+  return fallbackSupport("MODEL_NOT_FOUND");
 }
 
 Deno.serve(async (request) => {
@@ -233,18 +310,19 @@ Deno.serve(async (request) => {
     const message = sanitize(body.message || "", 1500);
 
     if (!message) {
-      return json(fallbackSupport(""));
+      return json(fallbackSupport("EMPTY_MESSAGE"));
     }
 
     return json(await generateSupport({
       message,
       history: normalizeHistory(body.history),
+      studentContext: body.studentContext || null,
     }));
   } catch (error) {
     console.error("support function failed", error);
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return json({ error: "UNAUTHORIZED" }, 401);
     }
-    return json(fallbackSupport(""));
+    return json(fallbackSupport(error instanceof Error ? error.message : "UNKNOWN_ERROR"));
   }
 });

@@ -245,6 +245,8 @@ async function loadTeacherData(user, shouldStartRealtime = true) {
   const inboxNotifications = resultData(results.inboxNotificationResult);
   const finalGrades = resultData(results.finalGradeResult);
   const periods = resultData(results.periodResult);
+  const piaObjectives = resultData(results.piaObjectiveResult);
+  const piaUpdates = resultData(results.piaUpdateResult);
   if (results.preferenceResult.error) throw results.preferenceResult.error;
 
   const students = buildStudentRows(studentRows, supportRows);
@@ -256,6 +258,7 @@ async function loadTeacherData(user, shouldStartRealtime = true) {
     teacherEmail: user.email || '',
     teacherId: user.id,
     schoolId: profile.school_id,
+    teacherSubjects,
     subjects: [...new Map([
       ...teacherSubjects.map(item => [item.subject_id, item.subjects || { id: item.subject_id, name: 'Lenda' }]),
       ...teacherClassAssignments.map(item => [item.subject_id, item.subjects || { id: item.subject_id, name: 'Lenda' }])
@@ -270,7 +273,9 @@ async function loadTeacherData(user, shouldStartRealtime = true) {
     chapters,
     assessments,
     finalGrades,
-    preferences: results.preferenceResult.data
+    preferences: results.preferenceResult.data,
+    piaObjectives,
+    piaUpdates
   });
 
   activeTeacherUser = user;

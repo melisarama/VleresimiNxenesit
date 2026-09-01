@@ -1,4 +1,5 @@
 import { recordAssistantPiaUpdate, saveAssistantPiaObjective } from '../services/teacherService.js';
+import { formatSqDate } from '../utils/dates.js';
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
@@ -9,8 +10,7 @@ function initials(name = '') {
 }
 
 function formatDate(value) {
-  if (!value) return '';
-  return new Intl.DateTimeFormat('sq-AL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+  return formatSqDate(value, { includeTime: true });
 }
 
 function ratingLabel(rating) {

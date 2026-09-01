@@ -1,5 +1,6 @@
 import { supabaseClient } from '../lib/supabaseClient.js';
 import { escapeHtml } from '../utils/html.js';
+import { formatSqDate } from '../utils/dates.js';
 import {
   addSchoolSubject,
   addAdminRelation,
@@ -247,7 +248,7 @@ function renderSubjects() {
 }
 
 function formatAdminDate(value) {
-  return new Intl.DateTimeFormat('sq-AL', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`));
+  return formatSqDate(value);
 }
 
 function renderPeriods() {
