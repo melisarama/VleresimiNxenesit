@@ -47,7 +47,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   let messages = [];
   let unreadOnly = false;
   let activeMessageId = null;
-  let materialContext = { teacherId: null, schoolId: null, subjects: [] };
+  let materialContext = { teacherId: null, schoolId: null, subjects: [], classAssignments: [], studentAssignments: [] };
   let teacherMaterials = [];
   let materialWarnings = [];
   let academicPeriods = [];
@@ -113,7 +113,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       classStudents.forEach(student => {
         const row = document.createElement('article');
         row.className = 'teacher-student-row';
-        row.innerHTML = `<span>${initials(student.name)}</span><div><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.support || 'Pa përshtatje të shënuara')}</small></div><p class="teacher-student-mood">${escapeHtml(studentMood(student))}</p><button type="button">Hap</button>`;
+        row.innerHTML = `<span>${initials(student.name)}</span><div><strong>${escapeHtml(student.name)}</strong><small>${escapeHtml(student.supportSummary || 'Pa përshtatje të shënuara')}</small></div><p class="teacher-student-mood">${escapeHtml(studentMood(student))}</p><button type="button">Hap</button>`;
         row.querySelector('button').addEventListener('click', () => openFolder(student));
         list.appendChild(row);
       });
@@ -161,9 +161,9 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
 
   function renderPreferencesDetail() {
     const heading = detailHeading('Preferencat dhe komunikimi', 'Të dhënat e konfirmuara për mbështetjen e nxënësit.');
-    const hasProfile = selectedStudent.supportSummary || selectedStudent.accessibilityInformation || selectedStudent.preferredMode || selectedStudent.learningPreferences?.length || selectedStudent.communicationLanguage || selectedStudent.communicationMethod;
+    const hasProfile = selectedStudent.supportSummary || selectedStudent.accessibilityInformation || selectedStudent.preferredMode || selectedStudent.learningPreferences?.length || selectedStudent.communicationLanguage || selectedStudent.communicationMethod || selectedStudent.additionalNotes;
     if (!hasProfile) return `${heading}<div class="teacher-detail-empty"><strong>Pa preferenca të raportuara</strong><p>Ky seksion do të plotësohet pasi familja të japë informacionin përkatës.</p></div>`;
-    return `${heading}<div class="teacher-preference-grid">${selectedStudent.learningPreferences?.length ? `<article><span>Preferencat e të nxënit</span><p>${escapeHtml(selectedStudent.learningPreferences.join(', '))}</p></article>` : ''}${selectedStudent.communicationLanguage ? `<article><span>Gjuha e komunikimit</span><p>${escapeHtml(selectedStudent.communicationLanguage)}</p></article>` : ''}${selectedStudent.communicationMethod ? `<article><span>Mënyra e komunikimit</span><p>${escapeHtml(selectedStudent.communicationMethod)}</p></article>` : ''}${selectedStudent.supportSummary ? `<article><span>Përmbledhja</span><p>${escapeHtml(selectedStudent.supportSummary)}</p></article>` : ''}${selectedStudent.preferredMode ? `<article><span>Mënyra e preferuar</span><p>${escapeHtml(selectedStudent.preferredMode)}</p></article>` : ''}${selectedStudent.accessibilityInformation ? `<article><span>Qasshmëria</span><p>${escapeHtml(selectedStudent.accessibilityInformation)}</p></article>` : ''}</div>`;
+    return `${heading}<div class="teacher-preference-grid">${selectedStudent.learningPreferences?.length ? `<article><span>Preferencat e të nxënit</span><p>${escapeHtml(selectedStudent.learningPreferences.join(', '))}</p></article>` : ''}${selectedStudent.communicationLanguage ? `<article><span>Gjuha e komunikimit</span><p>${escapeHtml(selectedStudent.communicationLanguage)}</p></article>` : ''}${selectedStudent.communicationMethod ? `<article><span>Mënyra e komunikimit</span><p>${escapeHtml(selectedStudent.communicationMethod)}</p></article>` : ''}${selectedStudent.supportSummary ? `<article><span>Përmbledhja</span><p>${escapeHtml(selectedStudent.supportSummary)}</p></article>` : ''}${selectedStudent.preferredMode ? `<article><span>Mënyra e preferuar</span><p>${escapeHtml(selectedStudent.preferredMode)}</p></article>` : ''}${selectedStudent.accessibilityInformation ? `<article><span>Qasshmëria</span><p>${escapeHtml(selectedStudent.accessibilityInformation)}</p></article>` : ''}${selectedStudent.additionalNotes ? `<article><span>Shënime shtesë</span><p>${escapeHtml(selectedStudent.additionalNotes)}</p></article>` : ''}</div>`;
   }
 
   const supportQuickPrompts = [
@@ -200,6 +200,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     ].filter(Boolean);
     if (student.learningPreferences?.length) rows.push(`Preferencat: ${student.learningPreferences.join(', ')}`);
     if (student.accessibilityInformation) rows.push(`Qasshmëria: ${student.accessibilityInformation}`);
+    if (student.additionalNotes) rows.push(`Shënime shtesë: ${student.additionalNotes}`);
     return rows;
   }
 
@@ -298,8 +299,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
         history: priorHistory.map(item => ({
           role: item.role,
           content: item.role === 'assistant' ? (item.data?.answer || item.content || '') : item.content
-        })),
-        student: student ? { id: student.id } : null
+        }))
       });
       session.messages.push({
         role: 'assistant',
@@ -487,14 +487,36 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
   }
 
+  function studentsForMaterialSubject(subjectId) {
+    const classIds = new Set(
+      materialContext.classAssignments
+        .filter(assignment => assignment.subject_id === subjectId)
+        .map(assignment => assignment.class_id)
+    );
+    const directIds = new Set(materialContext.studentAssignments || []);
+    return students.filter(student => directIds.has(student.id) || (student.class_id && classIds.has(student.class_id)));
+  }
+
   function renderMaterialFormOptions() {
     const subjectSelect = document.getElementById('teacherMaterialSubject');
+    const previousSubjectId = subjectSelect.value;
     subjectSelect.innerHTML = materialContext.subjects.map(subject => `<option value="${escapeHtml(subject.id)}">${escapeHtml(subject.name)}</option>`).join('');
-    const classes = [...new Map(students.filter(student => student.class_id).map(student => [student.class_id, { id: student.class_id, name: student.className || 'Pa klasë' }])).values()];
+    const selectedSubjectId = materialContext.subjects.some(subject => subject.id === previousSubjectId)
+      ? previousSubjectId
+      : materialContext.subjects[0]?.id || '';
+    subjectSelect.value = selectedSubjectId;
+    const allowedStudents = studentsForMaterialSubject(selectedSubjectId);
+    const classes = [...new Map(
+      materialContext.classAssignments
+        .filter(assignment => assignment.subject_id === selectedSubjectId)
+        .map(assignment => [assignment.class_id, { id: assignment.class_id, name: assignment.classes?.name || allowedStudents.find(student => student.class_id === assignment.class_id)?.className || 'Pa klasë' }])
+    ).values()];
     const classSelect = document.getElementById('teacherMaterialClass');
+    const previousClassId = classSelect.value;
     classSelect.innerHTML = classes.map(item => `<option value="${escapeHtml(item.id)}">Klasa ${escapeHtml(item.name)}</option>`).join('');
+    classSelect.value = classes.some(item => item.id === previousClassId) ? previousClassId : (classes[0]?.id || '');
     const studentOptions = document.getElementById('teacherMaterialStudents');
-    studentOptions.innerHTML = students.map(student => `<label><input type="checkbox" value="${escapeHtml(student.id)}"> ${escapeHtml(student.name)} <small>Klasa ${escapeHtml(student.className || 'Pa klasë')}</small></label>`).join('');
+    studentOptions.innerHTML = allowedStudents.map(student => `<label><input type="checkbox" value="${escapeHtml(student.id)}"> ${escapeHtml(student.name)} <small>Klasa ${escapeHtml(student.className || 'Pa klasë')}</small></label>`).join('');
     updateMaterialAudience();
   }
 
@@ -630,6 +652,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   });
   document.getElementById('teacherCancelMaterial').addEventListener('click', () => composer.classList.add('hidden'));
   document.getElementById('teacherMaterialAudience').addEventListener('change', updateMaterialAudience);
+  document.getElementById('teacherMaterialSubject').addEventListener('change', renderMaterialFormOptions);
   materialFiles.addEventListener('change', renderSelectedMaterialFiles);
   materialList.addEventListener('click', async event => {
     const deleteButton = event.target.closest('.teacher-material-delete');
@@ -640,10 +663,12 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     event.preventDefault();
     const submit = composer.querySelector('[type="submit"]');
     const audience = document.getElementById('teacherMaterialAudience').value;
+    const subjectId = document.getElementById('teacherMaterialSubject').value;
     const classId = document.getElementById('teacherMaterialClass').value;
+    const allowedStudents = studentsForMaterialSubject(subjectId);
     let recipientIds = [];
-    if (audience === 'class') recipientIds = students.filter(student => student.class_id === classId).map(student => student.id);
-    if (audience === 'subject') recipientIds = students.map(student => student.id);
+    if (audience === 'class') recipientIds = allowedStudents.filter(student => student.class_id === classId).map(student => student.id);
+    if (audience === 'subject') recipientIds = allowedStudents.map(student => student.id);
     if (audience === 'selected') recipientIds = [...document.querySelectorAll('#teacherMaterialStudents input:checked')].map(input => input.value);
     if (!materialContext.teacherId || !materialContext.schoolId) {
       materialStatus.textContent = 'Sesioni i mësimdhënësit nuk është gati. Kyçuni përsëri.';
@@ -659,7 +684,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       await publishTeacherMaterial({
         teacherId: materialContext.teacherId,
         schoolId: materialContext.schoolId,
-        subjectId: document.getElementById('teacherMaterialSubject').value,
+        subjectId,
         classId,
         audience,
         title: document.getElementById('teacherMaterialTitle').value.trim(),
@@ -811,9 +836,9 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   document.getElementById('teacherSaveSettings').addEventListener('click', async event => {
     const email = document.getElementById('teacherNotificationEmail').value.trim();
     const parentMessageEmails = document.getElementById('teacherParentMessageEmails').checked;
-    const dailyDigestEmails = document.getElementById('teacherDailyDigestEmails').checked;
+    const dailyDigestEmails = false;
     const status = document.getElementById('teacherSettingsStatus');
-    if ((parentMessageEmails || dailyDigestEmails) && !email) {
+    if (parentMessageEmails && !email) {
       status.textContent = 'Shtoni email-in ku dëshironi të merrni njoftimet.';
       return;
     }
@@ -849,7 +874,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   renderSupportPanel();
 
   return {
-    setData({ teacherName, teacherEmail = '', teacherId, schoolId, subjects = [], academicPeriods: nextPeriods = [], students: nextStudents = [], moods = {}, moodHistories: nextMoodHistories = {}, messages: nextMessages = [], chapters = [], assessments = [], finalGrades = [], preferences = null } = {}) {
+    setData({ teacherName, teacherEmail = '', teacherId, schoolId, subjects = [], teacherClassAssignments = [], teacherStudentAssignments = [], academicPeriods: nextPeriods = [], students: nextStudents = [], moods = {}, moodHistories: nextMoodHistories = {}, messages: nextMessages = [], chapters = [], assessments = [], finalGrades = [], preferences = null } = {}) {
       if (teacherId && teacherId !== supportOwnerId) {
         supportOwnerId = teacherId;
         supportStudentId = null;
@@ -864,7 +889,13 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       moodHistories = nextMoodHistories;
       selectedStudent = students[0] || null;
       renderStudents(document.getElementById('teacherStudentSearch').value);
-      materialContext = { teacherId: teacherId || materialContext.teacherId, schoolId: schoolId || materialContext.schoolId, subjects };
+      materialContext = {
+        teacherId: teacherId || materialContext.teacherId,
+        schoolId: schoolId || materialContext.schoolId,
+        subjects,
+        classAssignments: teacherClassAssignments,
+        studentAssignments: teacherStudentAssignments
+      };
       assessmentContext = { chapters, assessments, finalGrades };
       selectedAssessmentSubjectId = subjects[0]?.id || null;
       academicPeriods = nextPeriods;
@@ -873,7 +904,8 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       notificationPreferences = preferences;
       document.getElementById('teacherNotificationEmail').value = preferences?.notification_email || teacherEmail;
       document.getElementById('teacherParentMessageEmails').checked = preferences?.parent_message_emails || false;
-      document.getElementById('teacherDailyDigestEmails').checked = preferences?.daily_digest_emails || false;
+      document.getElementById('teacherDailyDigestEmails').checked = false;
+      document.getElementById('teacherDailyDigestEmails').disabled = true;
       activeMessageId = null;
       renderMessages();
       renderMaterialFormOptions();

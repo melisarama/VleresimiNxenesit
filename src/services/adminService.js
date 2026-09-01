@@ -27,12 +27,13 @@ export async function fetchAdminDashboardData(userId) {
     supabaseClient.from('teacher_subjects').select('*'),
     supabaseClient.from('teacher_students').select('*'),
     supabaseClient.from('teacher_classes').select('*'),
+    supabaseClient.from('assistant_teacher_students').select('*'),
     supabaseClient.from('parent_students').select('*'),
     supabaseClient.from('academic_periods').select('*').eq('school_id', schoolId).order('starts_on', { ascending: false })
   ]);
 
-  const [school, classes, students, profiles, subjects, schoolSubjects, teacherSubjects, teacherStudents, teacherClasses, parentStudents, academicPeriods] = results.map(throwOnError);
-  return { profile, school, classes, students, profiles, subjects, schoolSubjects, teacherSubjects, teacherStudents, teacherClasses, parentStudents, academicPeriods };
+  const [school, classes, students, profiles, subjects, schoolSubjects, teacherSubjects, teacherStudents, teacherClasses, assistantTeacherStudents, parentStudents, academicPeriods] = results.map(throwOnError);
+  return { profile, school, classes, students, profiles, subjects, schoolSubjects, teacherSubjects, teacherStudents, teacherClasses, assistantTeacherStudents, parentStudents, academicPeriods };
 }
 
 export async function saveAdminStudent({ id, schoolId, classId, className, firstName, lastName, status = 'active' }) {
@@ -107,6 +108,21 @@ export async function saveAcademicPeriod({ id = null, schoolId, name, schoolYear
     period_ends_on: endsOn,
     period_status: status
   }));
+}
+
+export async function saveTeacherClassAssignment({ teacherId, classId, subjectId }) {
+  const clearResult = await supabaseClient
+    .from('teacher_classes')
+    .delete()
+    .eq('class_id', classId)
+    .eq('subject_id', subjectId);
+  if (clearResult.error) throw clearResult.error;
+
+  return throwOnError(await supabaseClient
+    .from('teacher_classes')
+    .upsert({ teacher_id: teacherId, class_id: classId, subject_id: subjectId })
+    .select()
+    .single());
 }
 
 export async function addAdminRelation(table, values) {

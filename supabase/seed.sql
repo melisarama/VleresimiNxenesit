@@ -100,8 +100,10 @@ set
   updated_at = now();
 
 insert into public.schools (id, name, address)
-values ('10000000-0000-0000-0000-000000000001', 'Shkolla Demo Prishtinë', 'Adresë sintetike')
-on conflict (id) do nothing;
+values ('10000000-0000-0000-0000-000000000001', 'SHFMU "Iliria"', 'Elementary School "Iliria", Isa Kastrati, Pristina District, Prishtinë 10000')
+on conflict (id) do update
+set name = excluded.name,
+    address = excluded.address;
 
 insert into public.classes (id, school_id, name, school_year)
 values
@@ -166,10 +168,16 @@ values
   ('00000000-0000-0000-0000-0000000000b2', '30000000-0000-0000-0000-000000000003')
 on conflict do nothing;
 
-insert into public.teacher_classes (teacher_id, class_id)
-values
-  ('00000000-0000-0000-0000-0000000000b1', '20000000-0000-0000-0000-000000000001'),
-  ('00000000-0000-0000-0000-0000000000b2', '20000000-0000-0000-0000-000000000002')
+insert into public.teacher_classes (teacher_id, class_id, subject_id)
+select '00000000-0000-0000-0000-0000000000b1', '20000000-0000-0000-0000-000000000001', id
+from public.subjects
+where name = 'Matematikë'
+on conflict do nothing;
+
+insert into public.teacher_classes (teacher_id, class_id, subject_id)
+select '00000000-0000-0000-0000-0000000000b2', '20000000-0000-0000-0000-000000000002', id
+from public.subjects
+where name = 'Gjuhë shqipe'
 on conflict do nothing;
 
 insert into public.school_subjects (school_id, subject_id, active)

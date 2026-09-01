@@ -22,6 +22,20 @@
 #adminLogin #continueAdmin { width:100%; min-height:49px; margin-top:25px; border-radius:6px; border-color:#27735f; background:#27735f; }
 #adminLogin #backToRolesAdmin { margin-top:6px; border:0; background:transparent; color:#276652; text-decoration:underline; text-underline-offset:4px; }
 
+#adminLogin .btn.primary,
+.admin-app .btn.primary,
+.admin-dialog .btn.primary {
+  border-color:#27735f;
+  background:#27735f;
+}
+
+#adminLogin .btn.primary:hover,
+.admin-app .btn.primary:hover,
+.admin-dialog .btn.primary:hover {
+  border-color:#1f5d4c;
+  background:#1f5d4c;
+}
+
 #accountSetup { background:#eef4f2; }
 #accountSetup .account-setup-card { width:min(100%,456px); padding:42px 32px 30px; border:1px solid #d6e2de; border-radius:8px; background:#fff; box-shadow:0 18px 42px rgba(35,66,58,.13); }
 #accountSetup .avatar { border-radius:8px; background:#27735f; }
@@ -48,9 +62,10 @@
 .admin-logout { min-height:40px; margin-top:auto; border:1px solid #d7e0dd; border-radius:6px; color:#4b5c57; background:#fff; font-weight:700; }
 .admin-main { min-width:0; display:block; padding:0 32px 40px; }
 .admin-topbar { display:flex; align-items:center; justify-content:space-between; gap:20px; min-height:86px; padding:16px 0; border-bottom:1px solid #dae3e0; background:transparent; }
-.admin-topbar p { color:#6d7c77; font-size:12px; }
 .admin-topbar h1 { margin-top:3px; color:#182f29; font-size:23px; letter-spacing:0; }
 .admin-topbar .btn { border-radius:6px; }
+.admin-topbar-actions { display:flex; align-items:center; gap:10px; }
+.admin-mobile-logout { display:none; width:40px; height:40px; padding:0; border:1px solid #d7e0dd; border-radius:6px; color:#7d4148; background:#fff; font-size:18px; }
 .admin-connection-status { margin-top:12px; color:#1f725a; font-size:11px; font-weight:700; }
 .admin-connection-status.error { color:#a43d45; }
 .admin-status { min-height:23px; padding:6px 0; color:#586863; font-size:12px; }
@@ -128,6 +143,7 @@
 .admin-assignment-group { min-width:0; padding:17px; border-top:3px solid #477f70; background:#fff; }
 .admin-assignment-group h3 { color:#253b35; font-size:14px; letter-spacing:0; }
 .admin-assignment-group form { display:grid; grid-template-columns:1fr 1fr auto; gap:7px; margin-top:12px; }
+.admin-assignment-form-triple { grid-template-columns:1fr 1fr 1fr auto !important; }
 .admin-assignment-group select { min-width:0; min-height:38px; padding:7px 8px; border:1px solid #cbd8d4; border-radius:5px; background:#fff; }
 .admin-assignment-group .btn { min-height:38px; border-radius:5px; }
 .admin-assignment-list { display:grid; gap:5px; max-height:240px; overflow:auto; margin-top:13px; }
@@ -151,6 +167,7 @@
 .admin-dialog-error { min-height:20px; padding:0 18px; color:#a23f48; font-size:11px; }
 .admin-dialog-actions { display:flex; justify-content:flex-end; gap:8px; padding:14px 18px 18px; }
 .admin-dialog-actions .btn { border-radius:5px; }
+.admin-mobile-nav { display:none; }
 
 @media (max-width:1050px) {
   .admin-app { grid-template-columns:210px minmax(0,1fr); }
@@ -160,19 +177,15 @@
   .admin-subject-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 
-@media (max-width:760px) {
+@media (max-width:800px) {
   .admin-app { display:block; }
-  .admin-sidebar { position:sticky; z-index:10; top:0; width:100%; height:auto; padding:10px 12px; border-right:0; border-bottom:1px solid #dce4e1; }
-  .admin-brand { padding:0 0 9px; border-bottom:0; }
-  .admin-brand > span { width:34px; height:34px; }
-  .admin-sidebar nav { display:grid; grid-template-columns:1fr; gap:3px; margin:0; padding-bottom:2px; }
-  .admin-sidebar nav button { grid-template-columns:22px 1fr; width:100%; min-height:34px; padding:6px 9px; font-size:11px; }
-  .admin-sidebar nav button span { display:block; font-size:14px; }
-  .admin-logout { position:absolute; top:11px; right:12px; min-height:32px; margin:0; padding:5px 8px; font-size:10px; }
-  .admin-main { padding:0 13px 28px; }
+  .admin-sidebar { display:none; }
+  .admin-main { padding:0 13px 92px; }
   .admin-topbar { min-height:70px; }
   .admin-topbar h1 { font-size:20px; }
-  .admin-topbar .btn { max-width:145px; font-size:11px; }
+  .admin-topbar-actions { width:100%; justify-content:flex-end; }
+  .admin-topbar .btn { max-width:170px; font-size:11px; }
+  .admin-mobile-logout { display:grid; place-items:center; }
   .admin-metrics { gap:8px; }
   .admin-metrics article { min-height:86px; padding:13px; }
   .admin-metrics strong { margin-top:8px; font-size:24px; }
@@ -183,4 +196,52 @@
   .admin-subject-grid { grid-template-columns:1fr; }
   .admin-period-row { grid-template-columns:1fr; gap:9px; }
   .admin-assignment-group form { grid-template-columns:1fr; }
+  .admin-assignment-form-triple { grid-template-columns:1fr !important; }
+  .admin-mobile-nav {
+    position:fixed;
+    z-index:30;
+    right:0;
+    bottom:0;
+    left:0;
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:1px;
+    padding:6px 6px max(6px,env(safe-area-inset-bottom));
+    border-top:1px solid #dce4e1;
+    background:rgba(255,255,255,.96);
+    box-shadow:0 -10px 24px rgba(29,54,47,.08);
+    backdrop-filter:blur(14px);
+  }
+  .admin-mobile-nav button {
+    min-width:0;
+    min-height:56px;
+    display:grid;
+    place-items:center;
+    align-content:center;
+    gap:3px;
+    padding:5px 2px;
+    border:0;
+    border-radius:10px;
+    color:#72817c;
+    background:transparent;
+  }
+  .admin-mobile-nav button.active { color:#1f6f59; background:#eaf4ef; }
+  .admin-mobile-nav span { font-size:16px; line-height:1; }
+  .admin-mobile-nav small {
+    max-width:100%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:8px;
+    font-weight:800;
+  }
+}
+
+@media (max-width:480px) {
+  .admin-topbar { align-items:flex-start; flex-direction:column; gap:12px; padding:14px 0; }
+  .admin-topbar-actions { width:100%; justify-content:space-between; }
+  .admin-topbar .btn { max-width:none; flex:1 1 auto; }
+  .admin-metrics { grid-template-columns:1fr; }
+  .admin-overview-grid > section { padding:16px; }
+  .admin-mobile-nav { min-height:122px; }
 }

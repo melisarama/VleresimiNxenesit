@@ -89,12 +89,12 @@ async function requireTeacher(request: Request) {
 
   const { data: profileData, error: profileError } = await userClient
     .from("profiles")
-    .select("id,role,active")
+    .select("id,role,active,is_assistant_teacher")
     .eq("id", authData.user.id)
     .single();
-  const profile = profileData as { id: string; role: string; active: boolean } | null;
+  const profile = profileData as { id: string; role: string; active: boolean; is_assistant_teacher?: boolean } | null;
 
-  if (profileError || !profile || profile.role !== "teacher" || !profile.active) {
+  if (profileError || !profile || profile.role !== "teacher" || !profile.active || profile.is_assistant_teacher) {
     throw new Error("UNAUTHORIZED");
   }
 }
