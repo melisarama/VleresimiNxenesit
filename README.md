@@ -50,6 +50,7 @@ A mobile-first application for collaboration between teachers and parents in Kos
 - Academic period creation, activation, and closure with one active period per school.
 - Mobile-responsive administrator workspace that preserves the desktop layout patterns and navigation.
 - Class plus subject to teacher assignments, so students inherit the correct teachers automatically from their class membership.
+- Lower-primary `Mësimdhënës klasor` assignment support for classes 1-5, with a school-level subject bundle that expands into real subject-teacher assignments.
 - Legacy teacher-to-student links remain readable for compatibility, while assistant-to-student and parent-to-student assignments stay manual.
 - School subject creation, activation, deactivation, and account deactivation.
 
@@ -196,7 +197,7 @@ Remove `?dry_run=true` only when you intentionally want to send queued emails.
 
 ## Status
 
-The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow and the main teacher and parent workflows are database-backed, including persisted school data, responsive mobile workspaces, assessments, materials, mood history, staff mood observations, notifications, shared inbox conversations, saved email preferences, and the teacher AI support panel. Assistant teachers now have protected account creation, student assignment, teacher-login routing, a dedicated workspace for assigned children, and a separate PIA workflow with parent-visible progress updates. Main-teacher access is now driven by class plus subject assignments instead of manual student mapping for the normal flow. Production email delivery, complete adversarial RLS testing, a refreshed fictional test dataset, and a review of children's data privacy are still required before a pilot.
+The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow and the main teacher and parent workflows are database-backed, including persisted school data, responsive mobile workspaces, assessments, materials, mood history, staff mood observations, notifications, shared inbox conversations, saved email preferences, and the teacher AI support panel. Assistant teachers now have protected account creation, student assignment, teacher-login routing, a dedicated workspace for assigned children, and a separate PIA workflow with parent-visible progress updates. Main-teacher access is now driven by class plus subject assignments instead of manual student mapping for the normal flow, including lower-primary classroom-teacher expansion for classes 1-5. The AI support function now runs through OpenRouter server-side using the fixed free `openrouter/free` model instead of Gemini. Production email delivery, complete adversarial RLS testing, a refreshed fictional test dataset, and a review of children's data privacy are still required before a pilot.
 
 ## Remaining Implementation Work
 
@@ -247,6 +248,11 @@ The project is a functional prototype, but it is not yet ready for real school d
 - Fixed the parent daily-mood flow so the current day is updated in place, the submit action clearly switches to a resend state, and history excludes duplicate same-day entries.
 - Expanded parent support-profile persistence with capped classroom preferences, richer communication/accommodation notes, and database-backed storage in `student_support_profiles`.
 - Updated parent progress subject loading to follow the admin-managed class plus subject teacher assignments instead of only subjects that already have grades.
+
+### 2026-09-02
+
+- Replaced the Gemini-backed teacher support provider with OpenRouter's OpenAI-compatible API using the fixed free `openrouter/free` model through the existing Supabase Edge Function.
+- Added school-level lower-primary subject bundle support so assigning `Mësimdhënës klasor` to classes 1-5 expands into real class-subject teacher assignments for grading and parent progress views.
 
 ### 2026-08-14
 
