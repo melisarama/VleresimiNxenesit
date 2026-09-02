@@ -28,13 +28,14 @@ type SupportRequest = {
 
 type SupportResponse = {
   answer: string;
-  actions: string[];
-  observationCue: string;
-  escalation: string;
+  actions?: string[];
+  observationCue?: string;
+  escalation?: string;
   meta?: {
-    source: "gemini" | "fallback";
+    source: "openrouter" | "fallback";
     model?: string;
     reason?: string;
+    safetyMode?: "standard" | "urgent";
   };
 };
 
@@ -46,13 +47,33 @@ const corsHeaders = {
 
 const SYSTEM_PROMPT = [
   "Ti je asistent pedagogjik per mesimdhenes ne Kosove.",
-  "Pergjigju vetem ne shqip.",
-  "Jep nje pergjigje te qarte, natyrale dhe pa perseritje mekanike te pyetjes se mesimdhenesit.",
-  "Perdor vetem kontekstin e nxenesit qe te jepet dhe mos shpik detaje qe mungojne.",
-  "Jep nje pergjigje te shkurter, tre hapa praktike, nje gje per vezhgim dhe nje keshille per eskalim.",
-  "Mos jep diagnoza ose keshilla mjekesore.",
-  "Kthe vetem nje objekt JSON me fushat: answer, actions, observationCue, escalation.",
+  "Pergjigju vetem ne shqip me ton te qete dhe praktik.",
+  "Mos e perserit pyetjen e mesimdhenesit dhe mos bej permbledhje te gjate.",
+  "Jep vetem nje pergjigje natyrale me 1 ose 2 paragrafë te shkurter, rreth 90 deri ne 160 fjale gjithsej.",
+  "Shkruaj si keshille e drejtperdrejte per mesimdhenesin: cfare te beje tani, me hapa praktikë brenda paragrafit, jo me pika, jo me tituj, jo me etiketa si Hapat e sugjeruar.",
+  "Mos permend PIA, objektiva, diagnoza ose detaje te profilit nese mesimdhenesi nuk pyet drejtperdrejt per to.",
+  "Perdor kontekstin vetem per ta bere keshillen me te pershtatshme, jo per ta perseritur.",
+  "Ruaj dinjitetin e nxenesit; prefero hapa te vegjel, zgjedhje te qarta dhe mbeshtetje jo-ndeshkuese.",
+  "Mos jep keshilla mjekesore ose ligjore, as force, turperim ose izolim te panevojshem.",
+  "Nese ka rrezik te menjehershem, thekso sigurine dhe ndjekjen e protokollit te shkolles.",
 ].join(" ");
+
+const MAX_MESSAGE_LENGTH = 1500;
+const FETCH_TIMEOUT_MS = 25000;
+const OPENROUTER_MAX_ATTEMPTS = 3;
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_MODEL = "openrouter/free";
+const URGENT_PATTERNS = [
+  /vet[eë]\s*l[ëe]nd/i,
+  /vras|vrase|vetevras/i,
+  /rrezik.*menj[eë]hersh/i,
+  /sulm|dhun[ëe]|godet|godas|kafsh/i,
+  /arm[eë]|thik[ëe]/i,
+  /nuk merr frym[eë]/i,
+  /pavet[eë]dij/i,
+  /kriz[ëe]|konvulsion|seizure/i,
+  /gjakderdh/i,
+];
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -75,10 +96,8 @@ function supabasePublishableKey() {
   return optionalEnv("SUPABASE_ANON_KEY") || env("SUPABASE_PUBLISHABLE_KEY");
 }
 
-function candidateModels() {
-  const configured = optionalEnv("GEMINI_MODEL");
-  const defaults = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
-  return [configured, ...defaults].filter(Boolean).filter((value, index, array) => array.indexOf(value) === index);
+function openRouterApiKey() {
+  return env("OPENROUTER_API_KEY");
 }
 
 function sanitize(input: string, maxLength = 500) {
@@ -123,181 +142,206 @@ async function requireTeacher(request: Request) {
 }
 
 function buildPrompt(input: SupportRequest) {
-  const parts = [
-    "Situata e mesimdhenesit:",
-    sanitize(input.message || "", 1500),
-  ];
+  const parts = [`Situata: ${sanitize(input.message || "", 500)}`];
 
   const context = input.studentContext;
   if (context && typeof context === "object") {
-    const contextLines = [
-      context.className ? `Klasa: ${sanitize(context.className, 120)}` : "",
-      context.supportSummary ? `Permbledhja e mbeshtetjes: ${sanitize(context.supportSummary, 300)}` : "",
-      context.preferredMode ? `Menyra e preferuar: ${sanitize(context.preferredMode, 200)}` : "",
-      context.communicationMethod ? `Komunikimi: ${sanitize(context.communicationMethod, 200)}` : "",
+    const contextBits = [
+      context.className ? `klasa ${sanitize(context.className, 80)}` : "",
+      context.supportSummary ? `mbeshtetje: ${sanitize(context.supportSummary, 120)}` : "",
+      context.preferredMode ? `menyra e preferuar: ${sanitize(context.preferredMode, 80)}` : "",
+      context.communicationMethod ? `komunikimi: ${sanitize(context.communicationMethod, 80)}` : "",
       Array.isArray(context.learningPreferences) && context.learningPreferences.length
-        ? `Preferencat e te nxenit: ${context.learningPreferences.map((item) => sanitize(item, 80)).filter(Boolean).join(", ")}`
+        ? `preferencat: ${context.learningPreferences.map((item) => sanitize(item, 32)).filter(Boolean).slice(0, 3).join(", ")}`
         : "",
-      context.accessibilityInformation ? `Informacion i dobishem: ${sanitize(context.accessibilityInformation, 300)}` : "",
-      context.additionalNotes ? `Shenime shtese: ${sanitize(context.additionalNotes, 300)}` : "",
+      context.accessibilityInformation ? `info e dobishme: ${sanitize(context.accessibilityInformation, 100)}` : "",
+      context.additionalNotes ? `shenime: ${sanitize(context.additionalNotes, 100)}` : "",
     ].filter(Boolean);
 
-    const piaLines = (context.pia?.objectives || [])
-      .slice(0, 3)
-      .map((objective, index) => {
-        const partsForObjective = [
-          objective.title ? sanitize(objective.title, 120) : `Objektivi ${index + 1}`,
-          objective.status ? `statusi: ${sanitize(objective.status, 80)}` : "",
-          objective.latestComment ? `komenti i fundit: ${sanitize(objective.latestComment, 180)}` : "",
-        ].filter(Boolean);
-        return partsForObjective.join(" | ");
-      })
-      .filter(Boolean);
-
-    if (contextLines.length || piaLines.length) {
-      parts.push("Konteksti i nxenesit:");
-      if (contextLines.length) parts.push(...contextLines);
-      if (piaLines.length) {
-        parts.push("PIA:");
-        parts.push(...piaLines);
-      }
+    if (contextBits.length) {
+      parts.push(`Kontekst: ${contextBits.join("; ")}.`);
     }
   }
 
   const history = normalizeHistory(input.history);
   if (history.length) {
-    parts.push("Biseda e fundit:");
-    history.forEach((item) => {
-      parts.push(`${item.role === "assistant" ? "Asistenti" : "Mesimdhenesi"}: ${item.content}`);
-    });
+    const recentTurns = history.slice(-1)
+      .map((item) => `${item.role === "assistant" ? "Asistenti" : "Mesimdhenesi"}: ${sanitize(item.content, 120)}`)
+      .join(" || ");
+    if (recentTurns) {
+      parts.push(`Biseda e fundit: ${recentTurns}.`);
+    }
   }
 
-  parts.push("Formati i sakte:");
-  parts.push('{"answer":"...", "actions":["...", "...", "..."], "observationCue":"...", "escalation":"..."}');
+  parts.push("Jep udhezim te thjeshte per cfare te beje mesimdhenesi tani.");
+
   return parts.join("\n");
 }
 
-function fallbackSupport(reason = ""): SupportResponse {
+function classifySafetyMode(input: SupportRequest): "standard" | "urgent" {
+  const combined = [
+    input.message || "",
+    input.studentContext?.supportSummary || "",
+    input.studentContext?.additionalNotes || "",
+  ].join(" ");
+  return URGENT_PATTERNS.some((pattern) => pattern.test(combined)) ? "urgent" : "standard";
+}
+
+function fallbackSupport(reason = "", safetyMode: "standard" | "urgent" = "standard"): SupportResponse {
+  if (safetyMode === "urgent") {
+    return {
+      answer: "Kjo duket si situate me rrezik te larte. Flisni me ze te qete, ulni stimujt rreth nxenesit dhe siguroni menjehere nxenesin dhe te tjeret pa debat te gjate.\n\nNjoftoni menjëherë stafin pergjegjes sipas protokollit te shkolles. Nese ka rrezik fizik ose urgjence, ndiqni proceduren emergjente dhe kerkoni ndihme mjekesore.",
+      meta: {
+        source: "fallback",
+        reason: reason || "URGENT_SAFETY_MODE",
+        safetyMode,
+      },
+    };
+  }
   return {
-    answer: "Filloni me nje ton te qete, jepni nje hap te vogel dhe mbajeni udhezimin sa me te thjeshte qe nxenesi ta ndjeke menjehere.",
-    actions: [
-      "Flisni me ze te qete dhe jepni nje udhezim te vetem te shkurter.",
-      "Ofroni nje zgjedhje te thjeshte ose nje hap te vogel qe nxenesi mund ta beje tani.",
-      "Ulni stimulimin rreth nxenesit dhe jepini pak kohe per t'u rregulluar.",
-    ],
-    observationCue: "Vezhgoni nese qetesohet pas udhezimit te shkurter dhe nese e pranon zgjedhjen e ofruar.",
-    escalation: "Nese sjellja perkeqesohet ose ka rrezik, ndiqni protokollin e shkolles dhe kerkoni ndihme shtese.",
+    answer: "Filloni me nje ton te qete dhe jepni nje udhezim te vetem, te shkurter, qe nxenesi mund ta ndjeke menjehere. Ulni pak zhurmen ose ngarkesen rreth tij dhe ofroni nje hap te vogel ose nje zgjedhje te thjeshte qe ta ndihmoje te rikthehet ne aktivitet.\n\nVezhgoni nese qetesohet pas kesaj nderhyrjeje te shkurter. Nese situata perkeqesohet ose shfaqet rrezik, ndiqni protokollin e shkolles dhe kerkoni ndihme shtese.",
     meta: {
       source: "fallback",
       reason: reason || "AI_UNAVAILABLE",
+      safetyMode,
     },
   };
 }
 
-function normalizeSupportResponse(payload: unknown, model: string, fallbackReason = ""): SupportResponse {
-  const parsed = payload as Partial<SupportResponse> | null;
-  if (!parsed || typeof parsed !== "object") return fallbackSupport(fallbackReason || "INVALID_JSON");
-
-  const answer = typeof parsed.answer === "string" ? parsed.answer.trim() : "";
-  const actions = Array.isArray(parsed.actions)
-    ? parsed.actions.map((item) => typeof item === "string" ? item.trim() : "").filter(Boolean).slice(0, 3)
-    : [];
-  const observationCue = typeof parsed.observationCue === "string" ? parsed.observationCue.trim() : "";
-  const escalation = typeof parsed.escalation === "string" ? parsed.escalation.trim() : "";
-
-  if (!answer || !observationCue || !escalation) return fallbackSupport(fallbackReason || "MISSING_FIELDS");
-
-  while (actions.length < 3) {
-    actions.push(fallbackSupport(fallbackReason).actions[actions.length]);
-  }
+function normalizeSupportResponse(payload: unknown, model: string, fallbackReason = "", safetyMode: "standard" | "urgent" = "standard"): SupportResponse {
+  const parsed = payload as { answer?: string } | null;
+  const answer = typeof parsed?.answer === "string" ? parsed.answer.trim() : "";
+  if (!answer) return fallbackSupport(fallbackReason || "MISSING_FIELDS", safetyMode);
 
   return {
     answer,
-    actions,
-    observationCue,
-    escalation,
     meta: {
-      source: "gemini",
+      source: "openrouter",
       model,
+      safetyMode,
     },
   };
 }
 
-function extractJsonObject(text: string) {
-  const trimmed = text.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "").trim();
-  const start = trimmed.indexOf("{");
-  const end = trimmed.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) return trimmed;
-  return trimmed.slice(start, end + 1);
+function extractCompletionText(payload: unknown) {
+  const parsed = payload as {
+    choices?: Array<{
+      message?: {
+        content?: string;
+      };
+    }>;
+  } | null;
+
+  if (!parsed || typeof parsed !== "object") return "";
+  const text = parsed.choices?.[0]?.message?.content;
+  return typeof text === "string" ? text.trim() : "";
+}
+
+function normalizeAssistantAnswer(text: string) {
+  return text
+    .replace(/^```[a-z]*\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .replace(/\*\*Hapat e sugjeruar\*\*[\s\S]*$/i, "")
+    .replace(/\*\*Çfarë të vëzhgoni\*\*[\s\S]*$/i, "")
+    .replace(/\*\*Kur të eskaloni\*\*[\s\S]*$/i, "")
+    .replace(/Hapat e sugjeruar[\s\S]*$/i, "")
+    .replace(/Çfarë të vëzhgoni[\s\S]*$/i, "")
+    .replace(/Kur të eskaloni[\s\S]*$/i, "")
+    .trim();
+}
+
+function isUsableAssistantAnswer(answer: string, model: string) {
+  const normalized = answer.trim();
+  const blockedModel = /safety|guard|moderation|code/i.test(model);
+  const blockedAnswer = /^user safety:/i.test(normalized) || /^safe$/i.test(normalized);
+  const endsCleanly = /[.!?…"]$/.test(normalized);
+  return !blockedModel && !blockedAnswer && normalized.length >= 80 && endsCleanly;
 }
 
 async function generateSupport(input: SupportRequest): Promise<SupportResponse> {
-  const apiKey = env("GEMINI_API_KEY");
+  const safetyMode = classifySafetyMode(input);
+  if (safetyMode === "urgent") {
+    return fallbackSupport("URGENT_SAFETY_MODE", safetyMode);
+  }
 
-  for (const model of candidateModels()) {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: SYSTEM_PROMPT }],
-        },
-        contents: [{
-          role: "user",
-          parts: [{ text: buildPrompt(input) }],
-        }],
-        generationConfig: {
-          temperature: 0.25,
-          maxOutputTokens: 700,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "OBJECT",
-            properties: {
-              answer: { type: "STRING" },
-              actions: {
-                type: "ARRAY",
-                items: { type: "STRING" },
-              },
-              observationCue: { type: "STRING" },
-              escalation: { type: "STRING" },
-            },
-            required: ["answer", "actions", "observationCue", "escalation"],
+  const apiKey = openRouterApiKey();
+  const prompt = buildPrompt(input);
+  let lastReason = "AI_UNAVAILABLE";
+
+  for (let attempt = 1; attempt <= OPENROUTER_MAX_ATTEMPTS; attempt += 1) {
+    let response: Response;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      try {
+        response = await fetch(OPENROUTER_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
           },
-        },
-      }),
-    });
+          body: JSON.stringify({
+            model: OPENROUTER_MODEL,
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: prompt },
+            ],
+            temperature: 0.1,
+            max_tokens: 320,
+            reasoning: {
+              effort: "none",
+              exclude: true,
+            },
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (error) {
+      lastReason = error instanceof DOMException && error.name === "AbortError"
+        ? "OPENROUTER_TIMEOUT"
+        : "OPENROUTER_NETWORK_ERROR";
+      console.error("OPENROUTER_FETCH_ERROR", attempt, error);
+      continue;
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("GEMINI_ERROR", model, response.status, errorText);
-      if (response.status === 404) continue;
-      return fallbackSupport(`GEMINI_${response.status}`);
+      lastReason = `OPENROUTER_${response.status}`;
+      console.error("OPENROUTER_ERROR", attempt, response.status, errorText);
+      if (response.status === 429 || response.status >= 500) continue;
+      return fallbackSupport(lastReason, safetyMode);
     }
 
-    const payload = await response.json() as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    const text = (payload.candidates || [])
-      .flatMap((candidate) => candidate.content?.parts || [])
-      .map((part) => typeof part.text === "string" ? part.text : "")
-      .filter(Boolean)
-      .join("\n")
-      .trim();
+    const payload = await response.json() as { model?: string };
+    const text = extractCompletionText(payload);
 
-    if (!text) return fallbackSupport("EMPTY_TEXT");
+    if (!text) {
+      lastReason = "EMPTY_TEXT";
+      continue;
+    }
 
     try {
-      return normalizeSupportResponse(JSON.parse(extractJsonObject(text)), model);
+      const cleanedAnswer = normalizeAssistantAnswer(text);
+      const responseModel = payload.model || OPENROUTER_MODEL;
+      if (!cleanedAnswer) {
+        lastReason = "EMPTY_TEXT";
+        continue;
+      }
+      if (!isUsableAssistantAnswer(cleanedAnswer, responseModel)) {
+        lastReason = "LOW_QUALITY_RESPONSE";
+        continue;
+      }
+      return normalizeSupportResponse({ answer: cleanedAnswer }, responseModel, "", safetyMode);
     } catch (error) {
-      console.error("GEMINI_PARSE_ERROR", error);
-      return fallbackSupport("PARSE_ERROR");
+      lastReason = "PARSE_ERROR";
+      console.error("OPENROUTER_PARSE_ERROR", attempt, error, text);
+      continue;
     }
   }
 
-  return fallbackSupport("MODEL_NOT_FOUND");
+  return fallbackSupport(lastReason, safetyMode);
 }
 
 Deno.serve(async (request) => {
@@ -307,7 +351,7 @@ Deno.serve(async (request) => {
   try {
     await requireTeacher(request);
     const body = await request.json().catch(() => ({})) as SupportRequest;
-    const message = sanitize(body.message || "", 1500);
+    const message = sanitize(body.message || "", MAX_MESSAGE_LENGTH);
 
     if (!message) {
       return json(fallbackSupport("EMPTY_MESSAGE"));

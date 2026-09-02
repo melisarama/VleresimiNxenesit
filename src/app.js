@@ -31,6 +31,27 @@ function showRoleGate() {
   document.getElementById('roleGate').classList.remove('hidden');
 }
 
+function resetVisibleAuthViews() {
+  document.getElementById('teacherApp').classList.add('hidden');
+  document.getElementById('assistantTeacherApp').classList.add('hidden');
+  document.getElementById('parentDashboard').classList.add('hidden');
+  document.getElementById('adminApp').classList.add('hidden');
+  document.getElementById('teacherLogin').classList.add('hidden');
+  document.getElementById('parentPage').classList.add('hidden');
+  document.getElementById('adminLogin').classList.add('hidden');
+  showRoleGate();
+}
+
+async function completeLogout(cleanup) {
+  cleanup?.();
+  try {
+    await supabaseClient.auth.signOut();
+  } finally {
+    resetVisibleAuthViews();
+    window.location.reload();
+  }
+}
+
 function configurePasswordToggle(fieldId, buttonId) {
   document.getElementById(buttonId).onclick = () => {
     const field = document.getElementById(fieldId);
@@ -283,28 +304,25 @@ function stopAssistantTeacherUpdates() {
 
 const teacherPrototype = initializeTeacherPrototype({
   onLogout: async () => {
-    stopTeacherUpdates();
-    await supabaseClient.auth.signOut();
-    document.getElementById('teacherApp').classList.add('hidden');
-    showRoleGate();
+    await completeLogout(() => {
+      stopTeacherUpdates();
+    });
   }
 });
 
 const assistantTeacherPrototype = initializeAssistantTeacherPrototype({
   onLogout: async () => {
-    stopAssistantTeacherUpdates();
-    await supabaseClient.auth.signOut();
-    document.getElementById('assistantTeacherApp').classList.add('hidden');
-    showRoleGate();
+    await completeLogout(() => {
+      stopAssistantTeacherUpdates();
+    });
   }
 });
 
 const parentWorkflow = initializeParentWorkflow({
   onLogout: async () => {
-    parentWorkflow.stop();
-    await supabaseClient.auth.signOut();
-    document.getElementById('parentDashboard').classList.add('hidden');
-    showRoleGate();
+    await completeLogout(() => {
+      parentWorkflow.stop();
+    });
   }
 });
 

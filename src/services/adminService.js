@@ -1,8 +1,16 @@
 import { supabaseClient } from '../lib/supabaseClient.js';
 
+const CLASSROOM_TEACHER_SUBJECT_NAME = 'Mësimdhënës klasor';
+
 function throwOnError(result) {
   if (result.error) throw result.error;
   return result.data;
+}
+
+function isLowerPrimaryClassName(value = '') {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (!normalized) return false;
+  return /^(?:[1-5]|I{1,3}|IV|V)(?:[\/\-.\s]|$)/.test(normalized);
 }
 
 export async function fetchAdminDashboardData(userId) {
@@ -110,19 +118,41 @@ export async function saveAcademicPeriod({ id = null, schoolId, name, schoolYear
   }));
 }
 
-export async function saveTeacherClassAssignment({ teacherId, classId, subjectId }) {
+export async function saveTeacherClassAssignment({
+  teacherId,
+  classId,
+  subjectId,
+  subjectName = '',
+  className = '',
+  lowerPrimarySubjectIds = []
+}) {
+  const isClassroomTeacher = String(subjectName || '').trim() === CLASSROOM_TEACHER_SUBJECT_NAME;
+  const targetSubjectIds = isClassroomTeacher
+    ? [...new Set((Array.isArray(lowerPrimarySubjectIds) ? lowerPrimarySubjectIds : []).filter(id => id && id !== subjectId))]
+    : [subjectId];
+
+  if (isClassroomTeacher && !isLowerPrimaryClassName(className)) {
+    throw new Error('CLASSROOM_TEACHER_PRIMARY_ONLY');
+  }
+  if (!targetSubjectIds.length) {
+    throw new Error('LOWER_PRIMARY_SUBJECTS_REQUIRED');
+  }
+
   const clearResult = await supabaseClient
     .from('teacher_classes')
     .delete()
     .eq('class_id', classId)
-    .eq('subject_id', subjectId);
+    .in('subject_id', [...targetSubjectIds, ...(isClassroomTeacher ? [subjectId] : [])]);
   if (clearResult.error) throw clearResult.error;
 
   return throwOnError(await supabaseClient
     .from('teacher_classes')
-    .upsert({ teacher_id: teacherId, class_id: classId, subject_id: subjectId })
-    .select()
-    .single());
+    .insert(targetSubjectIds.map(targetId => ({
+      teacher_id: teacherId,
+      class_id: classId,
+      subject_id: targetId
+    })))
+    .select());
 }
 
 export async function addAdminRelation(table, values) {

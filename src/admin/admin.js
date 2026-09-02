@@ -25,6 +25,9 @@ const relationConfig = {
   'parent-student': { table: 'parent_students', fields: ['parent_id', 'student_id'] }
 };
 
+const CLASSROOM_TEACHER_SUBJECT_NAME = 'Mësimdhënës klasor';
+const DEFAULT_LOWER_PRIMARY_SUBJECT_NAMES = ['Edukatë fizike', 'Matematikë', 'Gjuhë shqipe', 'Edukatë muzikore', 'Anglisht'];
+
 let adminData = null;
 let activeView = 'overview';
 
@@ -47,6 +50,32 @@ function selected(value, expected) {
 
 function checked(value) {
   return value ? ' checked' : '';
+}
+
+function isLowerPrimaryClassName(value = '') {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (!normalized) return false;
+  return /^(?:[1-5]|I{1,3}|IV|V)(?:[\/\-.\s]|$)/.test(normalized);
+}
+
+function enabledSchoolSubjects() {
+  const enabledIds = new Set(adminData.schoolSubjects.filter(item => item.active).map(item => item.subject_id));
+  return adminData.subjects.filter(subject => enabledIds.has(subject.id));
+}
+
+function lowerPrimarySubjectOptions() {
+  return enabledSchoolSubjects()
+    .filter(subject => subject.name !== CLASSROOM_TEACHER_SUBJECT_NAME)
+    .sort((left, right) => left.name.localeCompare(right.name, 'sq'));
+}
+
+function lowerPrimarySubjectIds() {
+  const availableIds = new Set(lowerPrimarySubjectOptions().map(subject => subject.id));
+  const configured = (adminData.school.lower_primary_subject_ids || []).filter(id => availableIds.has(id));
+  if (configured.length) return configured;
+  return lowerPrimarySubjectOptions()
+    .filter(subject => DEFAULT_LOWER_PRIMARY_SUBJECT_NAMES.includes(subject.name))
+    .map(subject => subject.id);
 }
 
 function isAssistantTeacher(profile) {
@@ -73,6 +102,8 @@ function friendlyError(error, fallback = 'Veprimi nuk u krye. Provoni perseri.')
   if (/CLOSED_PERIOD_IMMUTABLE/.test(message)) return 'Nje periudhe e mbyllur nuk mund te ndryshohet.';
   if (/INVALID_DATES/.test(message)) return 'Data e perfundimit duhet te jete pas dates se fillimit.';
   if (/INVALID_SUBJECT_NAME/.test(message)) return 'Shkruani nje emer te vlefshem per lenden.';
+  if (/CLASSROOM_TEACHER_PRIMARY_ONLY/.test(message)) return 'Mësimdhënësi klasor mund të caktohet vetëm për klasat 1-5.';
+  if (/LOWER_PRIMARY_SUBJECTS_REQUIRED/.test(message)) return 'Zgjidhni të paktën një lëndë për klasat 1-5.';
   return fallback;
 }
 
@@ -245,6 +276,26 @@ function renderSubjects() {
       <input type="checkbox" data-action="toggle-subject" data-id="${subject.id}"${checked(enabledMap[subject.id] === true)}>
     </label>
   `).join('');
+
+  const selectedIds = new Set(lowerPrimarySubjectIds());
+  const options = lowerPrimarySubjectOptions();
+  byId('adminLowerPrimarySubjectConfig').innerHTML = options.length
+    ? `
+      <h3>Lëndët për klasat 1-5</h3>
+      <p>Zgjidhni cilat lëndë mbulohen kur caktoni <strong>${escapeHtml(CLASSROOM_TEACHER_SUBJECT_NAME)}</strong>. Kjo ruhet për shkollën dhe përdoret automatikisht te Caktimet.</p>
+      <div class="admin-subject-bundle-grid">
+        ${options.map(subject => `
+          <label class="admin-subject-toggle">
+            <span><strong>${escapeHtml(subject.name)}</strong><small>${selectedIds.has(subject.id) ? 'Përfshihet te mësimdhënësi klasor' : 'Nuk përfshihet'}</small></span>
+            <input type="checkbox" data-action="toggle-lower-primary-subject" data-id="${subject.id}"${checked(selectedIds.has(subject.id))}>
+          </label>
+        `).join('')}
+      </div>
+    `
+    : `
+      <h3>Lëndët për klasat 1-5</h3>
+      <p>Aktivizoni së pari lëndët që shkolla i përdor për klasat 1-5, pastaj zgjidhni cilat do të mbulohen nga mësimdhënësi klasor.</p>
+    `;
 }
 
 function formatAdminDate(value) {
@@ -308,6 +359,7 @@ function teacherClassAssignmentGroup(teacherOptions, classOptions, subjectOption
         <select name="teacher" required>${teacherOptions}</select>
         <button class="btn primary" type="submit">Cakto</button>
       </form>
+      <p class="admin-form-note admin-assignment-note">Kur zgjidhet <strong>${escapeHtml(CLASSROOM_TEACHER_SUBJECT_NAME)}</strong> për një klasë 1-5, sistemi e shtrin caktimin te lëndët e zgjedhura te “Lëndët për klasat 1-5”.</p>
       <div class="admin-assignment-list">${rows}</div>
     </section>
   `;
@@ -539,6 +591,27 @@ async function handleAdminAction(action, id, target) {
         return;
       }
       await setSchoolSubject(adminData.profile.school_id, id, target.checked);
+      if (!target.checked && (adminData.school.lower_primary_subject_ids || []).includes(id)) {
+        const availableAfterToggle = lowerPrimarySubjectOptions()
+          .filter(subject => subject.id !== id)
+          .map(subject => subject.id);
+        const nextBundle = (adminData.school.lower_primary_subject_ids || [])
+          .filter(subjectId => subjectId !== id && availableAfterToggle.includes(subjectId));
+        if (!nextBundle.length && availableAfterToggle.length) nextBundle.push(availableAfterToggle[0]);
+        await updateAdminSchool(adminData.school.id, {
+          lower_primary_subject_ids: nextBundle
+        });
+      }
+    } else if (action === 'toggle-lower-primary-subject') {
+      const current = new Set(lowerPrimarySubjectIds());
+      if (target.checked) current.add(id);
+      else current.delete(id);
+      if (!current.size) {
+        target.checked = true;
+        showAdminStatus('Paketës së klasave 1-5 duhet t’i mbetet të paktën një lëndë.', 'error');
+        return;
+      }
+      await updateAdminSchool(adminData.school.id, { lower_primary_subject_ids: [...current] });
     } else if (action === 'activate-period' || action === 'close-period') {
       const period = adminData.academicPeriods.find(item => item.id === id);
       const status = action === 'activate-period' ? 'active' : 'closed';
@@ -570,11 +643,24 @@ async function submitRelation(form) {
   const type = form.dataset.relationForm;
   const data = new FormData(form);
   if (type === 'teacher-class') {
+    const classId = data.get('class');
+    const subjectId = data.get('subject');
+    const teacherId = data.get('teacher');
+    const schoolClass = adminData.classes.find(item => item.id === classId);
+    const subject = adminData.subjects.find(item => item.id === subjectId);
     await saveTeacherClassAssignment({
-      classId: data.get('class'),
-      subjectId: data.get('subject'),
-      teacherId: data.get('teacher')
+      classId,
+      subjectId,
+      teacherId,
+      className: schoolClass?.name || '',
+      subjectName: subject?.name || '',
+      lowerPrimarySubjectIds: lowerPrimarySubjectIds()
     });
+    if (subject?.name === CLASSROOM_TEACHER_SUBJECT_NAME && isLowerPrimaryClassName(schoolClass?.name || '')) {
+      showAdminStatus('Caktimi u zgjerua te të gjitha lëndët e zgjedhura për klasat 1-5.', 'success');
+      await refreshAdminData();
+      return;
+    }
   } else {
     const config = relationConfig[type];
     const fieldValues = Object.fromEntries(config.fields.map((field, index) => [field, data.get(index === 0 ? 'left' : 'right')]));
@@ -627,10 +713,15 @@ export function initializeAdminWorkflow() {
     }
   };
   byId('adminLogout').onclick = async () => {
-    await supabaseClient.auth.signOut();
-    adminData = null;
-    byId('adminApp').classList.add('hidden');
-    byId('roleGate').classList.remove('hidden');
+    try {
+      await supabaseClient.auth.signOut();
+    } finally {
+      adminData = null;
+      byId('adminApp').classList.add('hidden');
+      byId('adminLogin').classList.add('hidden');
+      byId('roleGate').classList.remove('hidden');
+      window.location.reload();
+    }
   };
   byId('adminDialogCancel').onclick = () => byId('adminDialog').close();
   byId('adminDialogCancelSecondary').onclick = () => byId('adminDialog').close();

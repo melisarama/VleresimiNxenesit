@@ -81,7 +81,9 @@ SUPABASE_PUBLISHABLE_KEY=publishable-key
 PORT=8080
 ```
 
-`GEMINI_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` must be stored only on the server or in Supabase Secrets, never in browser JavaScript.
+`OPENROUTER_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` must be stored only on the server or in Supabase Secrets, never in browser JavaScript.
+
+The teacher support function now uses OpenRouter's OpenAI-compatible API with the fixed free router model `openrouter/free`, so it cannot accidentally route to a paid model.
 
 ## Demo Accounts
 
@@ -106,6 +108,15 @@ npm run functions:deploy:admin
 npm run functions:deploy:retention
 npm run functions:deploy:email
 ```
+
+Deploy the AI support function and set its secrets explicitly in Supabase:
+
+```powershell
+supabase secrets set OPENROUTER_API_KEY=your-openrouter-api-key
+npm run functions:deploy
+```
+
+This is the correct architecture: the OpenRouter key lives only in Supabase server-side secrets and never in browser code.
 
 The schema, migrations, RLS policies, and test data are located in `supabase/`.
 
@@ -201,8 +212,8 @@ The project is a functional prototype, but it is not yet ready for real school d
 
 ### AI support
 
-- Review and tune the teacher assistant prompts for more classroom scenarios before a pilot.
-- Expand the safety and escalation guidance if the UNICEF/KEC review asks for different wording or crisis handling steps.
+- Review the Albanian wording with real teachers before a pilot and expand the prompt library for more classroom scenarios.
+- Recheck the urgent-safety keyword list and escalation guidance with school protocol owners before a pilot.
 
 ### Security and privacy
 

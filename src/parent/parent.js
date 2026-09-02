@@ -19,6 +19,7 @@ import { escapeHtml } from '../utils/html.js';
 
 const viewLabels = {
   today: ['Perditesimi ditor', 'Sot'],
+  history: ['Njoftimet e mesimdhenesve dhe ndryshimet ditore', 'Humori ditor dhe historiku'],
   progress: ['Vleresimet', 'Progresi'],
   materials: ['Materialet mesimore', 'Materialet'],
   messages: ['Komunikimi', 'Mesazhet'],
@@ -58,6 +59,13 @@ function piaRatingLabel(rating) {
   }[Number(rating)] || 'Pa status';
 }
 
+function staffReporterLabel(log) {
+  const profile = log.profiles || {};
+  const name = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+  const role = log.reporter_role === 'assistant' ? 'Asistenti' : 'Mesimdhenesi';
+  return name ? `${role} - ${name}` : role;
+}
+
 function normalizeView(view) {
   return view === 'pia' ? 'progress' : view;
 }
@@ -84,7 +92,6 @@ export function initializeParentWorkflow({ onLogout } = {}) {
   let selectedPeriodId = '';
   let selectedSubjectId = '';
   let activeProgressTab = 'assessments';
-  let moodHistoryOpen = false;
   let stopRealtime = null;
   let realtimeRefreshTimer = null;
   let realtimeRefreshVersion = 0;
@@ -163,35 +170,88 @@ export function initializeParentWorkflow({ onLogout } = {}) {
 
   function renderToday() {
     const today = workspace.moods.find(item => item.reported_on === todayIso());
-    const previousEntries = workspace.moods.filter(item => item.reported_on !== todayIso());
     selectedMood = today?.mood || parentMoods[0];
     document.getElementById('parentMoodComment').value = today?.general_comment || today?.parent_comment || '';
     document.getElementById('parentMoodStatus').textContent = today ? 'Perditesimi i sotem eshte ruajtur. Mund ta ridergoni.' : '';
     document.getElementById('parentMoodSubmit').textContent = today ? 'Ridergo perditesimin' : 'Dergo perditesimin';
-    document.getElementById('parentHistoryToggle').textContent = moodHistoryOpen ? 'Fshih historikun' : 'Shiko historikun';
     renderMoodChoices();
+  }
 
-    const history = document.getElementById('parentMoodHistory');
-    history.classList.toggle('hidden', !moodHistoryOpen);
-    history.innerHTML = `
-      <div class="parent-section-heading">
-        <div><p>Historiku</p><h2>Gjendjet e meparshme</h2></div>
-        <button type="button" data-close-parent-history>Mbyll</button>
-      </div>
-      <div class="parent-history-list">
-        ${previousEntries.length ? previousEntries.map(item => `
-          <article class="parent-history-entry">
-            <time>${escapeHtml(formatDate(`${item.reported_on}T12:00:00`))}</time>
-            <strong>${escapeHtml(item.mood)}</strong>
-            <p>${escapeHtml(item.general_comment || item.parent_comment || 'Pa koment shtese.')}</p>
-          </article>
-        `).join('') : '<div class="parent-empty-state"><strong>Pa hyrje te meparshme</strong><p>Gjendjet e kaluara do te shfaqen ketu per femijen e zgjedhur.</p></div>'}
-      </div>
-    `;
-    history.querySelector('[data-close-parent-history]').addEventListener('click', () => {
-      moodHistoryOpen = false;
-      renderToday();
+  function renderHistoryDetail() {
+    const today = workspace.moods.find(item => item.reported_on === todayIso());
+    const previousEntries = workspace.moods.filter(item => item.reported_on !== todayIso());
+    const staffLogs = (workspace.staffMoodLogs || []).slice().sort((left, right) => {
+      const leftDate = left.created_at || left.reported_on;
+      const rightDate = right.created_at || right.reported_on;
+      return new Date(rightDate) - new Date(leftDate);
     });
+
+    document.getElementById('parentHistoryDetail').innerHTML = `
+      <div class="parent-detail-heading">
+        <h2>Humori ditor dhe historiku</h2>
+        <p>Njoftimet e mesimdhenesve dhe ndryshimet ditore per ${escapeHtml(child.name)}.</p>
+      </div>
+      <div class="parent-history-layout">
+        ${today ? `
+          <article class="parent-current-mood">
+            <small>Sot</small>
+            <strong>${escapeHtml(today.mood)}</strong>
+            <p>${escapeHtml(today.general_comment || today.parent_comment || 'Pa koment shtese.')}</p>
+          </article>
+        ` : `
+          <div class="parent-detail-empty">
+            <strong>Pa gjendje te raportuar sot</strong>
+            <p>Ende nuk eshte ruajtur nje perditesim ditor per sot.</p>
+          </div>
+        `}
+        <section class="parent-history-timeline">
+          <div class="parent-history-block-heading">
+            <h3>Historiku i familjes</h3>
+            <p>Gjendjet e meparshme te raportuara nga prindi.</p>
+          </div>
+          ${previousEntries.length ? `
+            <div class="parent-history-list">
+              ${previousEntries.map(item => `
+                <article class="parent-history-entry">
+                  <time>${escapeHtml(formatDate(`${item.reported_on}T12:00:00`))}</time>
+                  <strong>${escapeHtml(item.mood)}</strong>
+                  <p>${escapeHtml(item.general_comment || item.parent_comment || 'Pa koment shtese.')}</p>
+                </article>
+              `).join('')}
+            </div>
+          ` : `
+            <div class="parent-detail-empty">
+              <strong>Pa hyrje te meparshme</strong>
+              <p>Gjendjet e kaluara do te shfaqen ketu per femijen e zgjedhur.</p>
+            </div>
+          `}
+        </section>
+      </div>
+      <section class="parent-staff-log-panel">
+        <div class="parent-history-block-heading">
+          <h3>Log-et nga stafi</h3>
+          <p>Njoftimet e mesimdhenesve dhe asistenteve te lidhur me femijen.</p>
+        </div>
+        ${staffLogs.length ? `
+          <div class="parent-staff-log-list">
+            ${staffLogs.map(log => `
+              <article class="parent-staff-log-entry">
+                <div>
+                  <strong>${escapeHtml(log.mood)}</strong>
+                  <small>${escapeHtml(staffReporterLabel(log))} · ${escapeHtml(formatDate(log.created_at || `${log.reported_on}T12:00:00`, true))}${log.context ? ` · ${escapeHtml(log.context)}` : ''}</small>
+                </div>
+                <p>${escapeHtml(log.comment || 'Pa koment shtese.')}</p>
+              </article>
+            `).join('')}
+          </div>
+        ` : `
+          <div class="parent-detail-empty">
+            <strong>Pa log-e nga stafi</strong>
+            <p>Vezhgimet e mesimdhenesve dhe asistenteve do te shfaqen ketu.</p>
+          </div>
+        `}
+      </section>
+    `;
   }
 
   function periodRows() {
@@ -537,6 +597,7 @@ export function initializeParentWorkflow({ onLogout } = {}) {
     renderChildOptions();
     renderIdentity();
     renderToday();
+    renderHistoryDetail();
     renderProgress();
     renderPia();
     renderMaterials();
@@ -594,7 +655,6 @@ export function initializeParentWorkflow({ onLogout } = {}) {
     selectedThreadId = null;
     selectedPeriodId = '';
     selectedSubjectId = '';
-    moodHistoryOpen = false;
     renderAll();
   }
 
@@ -618,10 +678,11 @@ export function initializeParentWorkflow({ onLogout } = {}) {
       document.getElementById('parentProfileStatus').textContent = '';
     });
   });
-  document.getElementById('parentHistoryToggle').addEventListener('click', () => {
-    moodHistoryOpen = !moodHistoryOpen;
-    renderToday();
+  document.getElementById('parentOpenMoodHistory').addEventListener('click', () => {
+    renderHistoryDetail();
+    showView('history');
   });
+  document.getElementById('parentHistoryBack').addEventListener('click', () => showView('today'));
   document.getElementById('parentMoodForm').addEventListener('submit', async event => {
     event.preventDefault();
     const status = document.getElementById('parentMoodStatus');

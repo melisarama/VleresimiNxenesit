@@ -488,12 +488,16 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
 
   function renderSupportMessage(message) {
     if (message.role === 'assistant') {
-      const actions = Array.isArray(message.data?.actions) ? message.data.actions : [];
+      const fallbackNotice = message.data?.meta?.source === 'fallback'
+        ? `<div class="teacher-support-inline-block danger"><strong>Pergjigje rezerve</strong><p>${escapeHtml(message.data?.meta?.safetyMode === 'urgent' ? 'Sistemi kaloi ne modalitet sigurie per situate urgjente. Ndiqni protokollin e shkolles.' : 'Asistenti AI nuk ishte i disponueshem ne ate moment. U shfaq udhezimi baze i sigurise.')}</p></div>`
+        : '';
+      const answerHtml = String(message.data?.answer || message.content || '')
+        .split(/\n{2,}/)
+        .map(part => `<p>${escapeHtml(part.trim())}</p>`)
+        .join('');
       return `<article class="teacher-support-message assistant"><div class="teacher-support-bubble">
-        <p>${escapeHtml(message.data?.answer || message.content || '')}</p>
-        ${actions.length ? `<div class="teacher-support-inline-block"><strong>Hapat e sugjeruar</strong><ul>${actions.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>` : ''}
-        ${message.data?.observationCue ? `<div class="teacher-support-inline-block"><strong>Çfarë të vëzhgoni</strong><p>${escapeHtml(message.data.observationCue)}</p></div>` : ''}
-        ${message.data?.escalation ? `<div class="teacher-support-inline-block danger"><strong>Kur të eskaloni</strong><p>${escapeHtml(message.data.escalation)}</p></div>` : ''}
+        ${answerHtml || `<p>${escapeHtml(message.content || '')}</p>`}
+        ${fallbackNotice}
       </div></article>`;
     }
     return `<article class="teacher-support-message user"><div class="teacher-support-bubble"><p>${escapeHtml(message.content || '')}</p></div></article>`;
@@ -568,17 +572,17 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
         })),
         studentContext: buildSupportRequestContext(student)
       });
-      if (response.meta?.source && response.meta.source !== 'gemini') {
+      if (response.meta?.source === 'fallback') {
         console.warn('Teacher support fallback used:', response.meta.reason || 'UNKNOWN_REASON');
+        session.error = response.meta?.safetyMode === 'urgent'
+          ? 'U dha udhezim urgjent i sigurise. Ndiqni protokollin e shkolles.'
+          : 'Asistenti AI nuk ishte i disponueshem. U shfaq pergjigje rezerve.';
       }
       session.messages.push({
         role: 'assistant',
         content: response.answer || '',
         data: {
           answer: response.answer || '',
-          actions: Array.isArray(response.actions) ? response.actions.slice(0, 3) : [],
-          observationCue: response.observationCue || '',
-          escalation: response.escalation || '',
           meta: response.meta || null
         }
       });

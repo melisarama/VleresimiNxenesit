@@ -160,12 +160,18 @@
         <section class="parent-workspace-view active" data-parent-panel="today">
           <div class="parent-welcome-band"><div><p>Mirë se erdhët</p><h2 id="parentWelcomeName">Prind</h2><span id="parentTodayDate"></span></div><div><span id="parentChildInitials">NX</span><strong id="parentChildName">Nxënësi</strong><small id="parentChildClass">Pa klasë</small></div></div>
           <form class="parent-mood-workflow" id="parentMoodForm">
-            <div class="parent-section-heading"><div><p>Gjendja e sotme</p><h2 id="parentMoodQuestion">Si është fëmija sot?</h2></div><button type="button" id="parentHistoryToggle">Shiko historikun</button></div>
+            <div class="parent-section-heading"><div><p>Gjendja e sotme</p><h2 id="parentMoodQuestion">Si është fëmija sot?</h2></div></div>
+            <div class="parent-history-launch">
+              <button type="button" id="parentOpenMoodHistory">Shiko historikun</button>
+            </div>
             <div class="parent-mood-choices" id="parentMoodChoices"></div>
             <label>Një koment për mësimdhënësit<textarea id="parentMoodComment" maxlength="1200" rows="4" placeholder="Shkruani diçka që çdo mësimdhënës i fëmijës duhet ta dijë sot."></textarea></label>
             <div class="parent-form-footer"><p id="parentMoodStatus" aria-live="polite"></p><button class="parent-primary-button" id="parentMoodSubmit" type="submit">Dërgo përditësimin</button></div>
           </form>
-          <section class="parent-history-panel hidden" id="parentMoodHistory"></section>
+        </section>
+        <section class="parent-workspace-view" data-parent-panel="history">
+          <button class="parent-back-button" id="parentHistoryBack" type="button">← <span>Sot</span></button>
+          <div id="parentHistoryDetail"></div>
         </section>
         <section class="parent-workspace-view" data-parent-panel="progress">
           <div class="parent-section-heading"><div><p>Vlerësimet</p><h2>Progresi sipas kapitujve</h2></div></div>
@@ -282,6 +288,7 @@
       <section class="admin-view hidden" data-admin-view="subjects">
         <div class="admin-section-head"><div><p>Programi i shkollës</p><h2>Lëndët aktive</h2></div><button class="btn primary" type="button" data-action="add-subject">Shto lëndë</button></div>
         <div class="admin-subject-grid" id="adminSubjectRows"></div>
+        <section class="admin-subject-bundle" id="adminLowerPrimarySubjectConfig"></section>
       </section>
       <section class="admin-view hidden" data-admin-view="periods">
         <div class="admin-section-head"><div><p>Kalendari mësimor</p><h2>Periudhat akademike</h2></div><button class="btn primary" type="button" data-action="add-period">Shto periudhë</button></div>

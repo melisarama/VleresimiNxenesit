@@ -5,6 +5,25 @@ function throwOnError(result) {
   return result.data;
 }
 
+function optionalStaffMoodResult(result) {
+  const message = result.error?.message || '';
+  if (result.error && (result.error.code === '42P01' || message.includes('staff_mood_logs'))) {
+    return { data: [], error: null };
+  }
+  return result;
+}
+
+async function fetchStaffMoodLogs(studentId) {
+  if (!studentId) return { data: [], error: null };
+  const result = await supabaseClient
+    .from('staff_mood_logs')
+    .select('id,student_id,reporter_id,reporter_role,mood,comment,context,reported_on,created_at,updated_at,profiles(first_name,last_name)')
+    .eq('student_id', studentId)
+    .order('reported_on', { ascending: false })
+    .order('created_at', { ascending: false });
+  return optionalStaffMoodResult(result);
+}
+
 function normalizeSupportProfile(row) {
   if (!row) return null;
   const preferences = row.preferences || {};
@@ -41,10 +60,11 @@ export async function fetchParentWorkspaceData(studentId, userId) {
     supabaseClient.from('parent_notification_preferences').select('*').eq('profile_id', userId).maybeSingle(),
     supabaseClient.from('class_material_recipients').select('student_id,material_id,class_materials(id,title,description,created_at,expires_at,subject_id,subjects(name),class_material_files(id,original_name,mime_type,byte_size,storage_path))').eq('student_id', studentId),
     supabaseClient.from('pia_objectives').select('id,student_id,assistant_teacher_id,title,details,active,created_at,updated_at').eq('student_id', studentId).order('updated_at', { ascending: false }),
-    supabaseClient.from('pia_objective_updates').select('id,objective_id,student_id,assistant_teacher_id,rating,comment,reported_on,created_at,updated_at').eq('student_id', studentId).order('reported_on', { ascending: false }).order('updated_at', { ascending: false })
+    supabaseClient.from('pia_objective_updates').select('id,objective_id,student_id,assistant_teacher_id,rating,comment,reported_on,created_at,updated_at').eq('student_id', studentId).order('reported_on', { ascending: false }).order('updated_at', { ascending: false }),
+    fetchStaffMoodLogs(studentId)
   ]);
-  const [profileResult, gradeResult, finalGradeResult, moodResult, supportResult, teacherOptionResult, threadResult, notificationResult, preferenceResult, materialResult, piaObjectiveResult, piaUpdateResult] = baseResults;
-  [profileResult, gradeResult, finalGradeResult, moodResult, supportResult, teacherOptionResult, threadResult, notificationResult, preferenceResult, materialResult, piaObjectiveResult, piaUpdateResult].forEach(result => {
+  const [profileResult, gradeResult, finalGradeResult, moodResult, supportResult, teacherOptionResult, threadResult, notificationResult, preferenceResult, materialResult, piaObjectiveResult, piaUpdateResult, staffMoodResult] = baseResults;
+  [profileResult, gradeResult, finalGradeResult, moodResult, supportResult, teacherOptionResult, threadResult, notificationResult, preferenceResult, materialResult, piaObjectiveResult, piaUpdateResult, staffMoodResult].forEach(result => {
     if (result.error) throw result.error;
   });
   const threads = threadResult.data || [];
@@ -73,6 +93,7 @@ export async function fetchParentWorkspaceData(studentId, userId) {
     notifications: notificationResult.data || [],
     preferences: preferenceResult.data,
     materials: (materialResult.data || []).map(row => row.class_materials).filter(Boolean),
+    staffMoodLogs: staffMoodResult.data || [],
     piaObjectives: (piaObjectiveResult.data || []).map(item => ({
       ...item,
       assistantName: assistantNames[item.assistant_teacher_id] || 'Asistenti'

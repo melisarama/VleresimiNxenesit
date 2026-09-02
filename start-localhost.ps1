@@ -91,13 +91,9 @@ function Try-Send-StaticFile {
 
 function Get-SupportReply {
     param([string]$Message)
-    if ([string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY)) { throw 'GEMINI_API_KEY_MISSING' }
+    if ([string]::IsNullOrWhiteSpace($env:OPENROUTER_API_KEY)) { throw 'OPENROUTER_API_KEY_MISSING' }
 
-    $configuredModel = if ([string]::IsNullOrWhiteSpace($env:GEMINI_MODEL)) { '' } else { $env:GEMINI_MODEL.Trim() }
-    $models = @()
-    if (-not [string]::IsNullOrWhiteSpace($configuredModel)) { $models += $configuredModel }
-    if ($models -notcontains 'gemini-2.5-flash') { $models += 'gemini-2.5-flash' }
-    if ($models -notcontains 'gemini-3.6-flash') { $models += 'gemini-3.6-flash' }
+    $model = 'openrouter/free'
     $systemInstruction = @"
 Ti je një asistent pedagogjik në kohë reale për mësimdhënës në Kosovë. Përgjigju vetëm në shqip, qartë dhe shkurt, duke u bazuar drejtpërdrejt në situatën e fundit të shkruar nga mësimdhënësi.
 
@@ -111,39 +107,32 @@ Përdor këtë format:
 Mos përdor hyrje të përgjithshme, mos përsërit modele të gatshme dhe mos kërko të dhëna personale ose mjekësore. Nëse ka rrezik të menjëhershëm, dhunë, vetëlëndim ose rrezik për të tjerët, udhëzo fillimisht sigurimin e fëmijës, aktivizimin e protokollit të mbrojtjes së shkollës dhe kontaktimin e shërbimeve emergjente lokale. Këshilla nuk zëvendëson profesionistët ose procedurat e shkollës.
 "@
     $requestBody = @{
-        systemInstruction = @{ parts = @(@{ text = $systemInstruction }) }
-        contents = @(@{ role = 'user'; parts = @(@{ text = $Message }) })
-        generationConfig = @{
-            temperature = 0.2
-            maxOutputTokens = 400
+        model = $model
+        messages = @(
+            @{ role = 'system'; content = $systemInstruction }
+            @{ role = 'user'; content = $Message }
+        )
+        temperature = 0.2
+        max_tokens = 400
+        reasoning = @{
+            effort = 'none'
+            exclude = $true
         }
     } | ConvertTo-Json -Depth 8
-    foreach ($model in $models) {
-        try {
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent"
-            $response = Invoke-RestMethod -Method Post -Uri $url -Headers @{ 'Content-Type' = 'application/json'; 'x-goog-api-key' = $env:GEMINI_API_KEY } -Body $utf8.GetBytes($requestBody) -TimeoutSec 60
-            $reply = $response.candidates[0].content.parts[0].text
-            if (-not $reply) { throw 'Gemini AI nuk ktheu tekst.' }
-            return $reply.Trim()
-        } catch {
-            $statusCode = $_.Exception.Response.StatusCode.value__
-            if ($statusCode -eq 404 -and $model -ne $models[-1]) {
-                continue
-            }
-            throw
-        }
-    }
-    throw 'Gemini AI nuk gjeti model te vlefshem.'
+    $response = Invoke-RestMethod -Method Post -Uri 'https://openrouter.ai/api/v1/chat/completions' -Headers @{ 'Content-Type' = 'application/json'; 'Authorization' = "Bearer $($env:OPENROUTER_API_KEY)" } -Body $utf8.GetBytes($requestBody) -TimeoutSec 60
+    $reply = $response.choices[0].message.content
+    if (-not $reply) { throw 'OpenRouter AI nuk ktheu tekst.' }
+    return $reply.Trim()
 }
 
 try {
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
     $listener.Start()
     Write-Host "Local server is running at http://localhost:$port/"
-    if ([string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY)) {
-        Write-Warning 'AI support is not configured. Set GEMINI_API_KEY in .env and restart this server.'
+    if ([string]::IsNullOrWhiteSpace($env:OPENROUTER_API_KEY)) {
+        Write-Warning 'AI support is not configured. Set OPENROUTER_API_KEY in .env and restart this server.'
     } else {
-        Write-Host 'AI support is configured for Gemini AI.'
+        Write-Host 'AI support is configured for OpenRouter free router.'
     }
 
     while ($true) {
@@ -186,8 +175,8 @@ try {
                         Send-Json $stream 200 @{ reply = (Get-SupportReply $message.Trim()) }
                     }
                 } catch {
-                    if ($_.Exception.Message -eq 'GEMINI_API_KEY_MISSING') {
-                        Send-Json $stream 503 @{ error = 'AI nuk është konfiguruar. Vendosni GEMINI_API_KEY në .env dhe rinisni serverin.' }
+                    if ($_.Exception.Message -eq 'OPENROUTER_API_KEY_MISSING') {
+                        Send-Json $stream 503 @{ error = 'AI nuk është konfiguruar. Vendosni OPENROUTER_API_KEY në .env dhe rinisni serverin.' }
                     } else {
                         Write-Warning "AI request failed: $($_.Exception.Message)"
                         Send-Json $stream 503 @{ error = 'Asistenti AI nuk mundi të përgjigjet tani. Kontrolloni lidhjen dhe çelësin API.' }
