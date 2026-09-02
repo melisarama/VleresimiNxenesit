@@ -136,7 +136,9 @@ Required Supabase Function secrets:
 ```env
 RESEND_API_KEY=re_your-resend-api-key
 EMAIL_DISPATCH_SECRET=change-this-long-random-secret
-EMAIL_FROM="Mesim i Qarte <onboarding@resend.dev>"
+EMAIL_FROM="Vleresimi i Nxenesit <no-reply@your-verified-domain.example>"
+RESEND_FROM_EMAIL=
+EMAIL_FROM_NAME=Vleresimi i Nxenesit
 EMAIL_REPLY_TO=
 EMAIL_APP_URL=http://localhost:8080
 EMAIL_TEST_RECIPIENT=
@@ -144,7 +146,11 @@ EMAIL_DISPATCH_LIMIT=25
 EMAIL_MAX_ATTEMPTS=3
 ```
 
-For free testing without a verified domain, use Resend's default sender (`onboarding@resend.dev`) and set `EMAIL_TEST_RECIPIENT` to the email address allowed by your Resend account. This redirects all outgoing app emails to that test inbox while preserving the real recipient in `email_deliveries`.
+`EMAIL_DISPATCH_SECRET` is only the private trigger secret for the `email-dispatch` Edge Function. It is not the Resend API key. The Resend API key must be stored separately as `RESEND_API_KEY`.
+
+Set either `EMAIL_FROM` as a full sender string or `RESEND_FROM_EMAIL` plus optional `EMAIL_FROM_NAME`. The dispatcher now requires a configured sender instead of silently falling back to an old default.
+
+For free testing, set `EMAIL_TEST_RECIPIENT` to the email address allowed by your Resend account. This redirects all outgoing app emails to that test inbox while preserving the real recipient in `email_deliveries`.
 
 For a school pilot, verify a real domain or subdomain in Resend, update `EMAIL_FROM` to something like `Mesim i Qarte <no-reply@mail.example.org>`, and configure SPF, DKIM, and DMARC records. Upgrading from Resend's free tier to a paid plan should not require app code changes; keep the same function and update the plan/key/domain settings as needed.
 

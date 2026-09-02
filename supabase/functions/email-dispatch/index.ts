@@ -37,7 +37,20 @@ function optionalEnv(name: string): string {
 }
 
 function resendApiKey(): string {
-  return optionalEnv("RESEND_API_KEY") || env("RESEND_EMAIL_API_KEY");
+  return optionalEnv("RESEND_API_KEY") || optionalEnv("RESEND_EMAIL_API_KEY") || env("RESEND_EMAIL_API_KEY");
+}
+
+function senderAddress(): string {
+  const fullSender = optionalEnv("EMAIL_FROM");
+  if (fullSender) return fullSender;
+
+  const senderEmail = optionalEnv("RESEND_FROM_EMAIL");
+  if (senderEmail) {
+    const senderName = optionalEnv("EMAIL_FROM_NAME") || "Vleresimi i Nxenesit";
+    return `${senderName} <${senderEmail}>`;
+  }
+
+  throw new Error("EMAIL_FROM_MISSING");
 }
 
 function errorMessage(error: unknown): string {
@@ -69,7 +82,7 @@ async function sendWithResend(delivery: EmailDelivery) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: optionalEnv("EMAIL_FROM") || "Mesim i Qarte <onboarding@resend.dev>",
+      from: senderAddress(),
       to,
       subject: delivery.subject,
       text: content.text,
@@ -114,6 +127,12 @@ Deno.serve(async (request: Request) => {
       dryRun: true,
       loaded: deliveries?.length || 0,
       ids: (deliveries || []).map((delivery) => delivery.id),
+      config: {
+        resendApiKeyConfigured: Boolean(optionalEnv("RESEND_API_KEY") || optionalEnv("RESEND_EMAIL_API_KEY")),
+        emailFromConfigured: Boolean(optionalEnv("EMAIL_FROM") || optionalEnv("RESEND_FROM_EMAIL")),
+        testRecipientConfigured: Boolean(optionalEnv("EMAIL_TEST_RECIPIENT")),
+        appUrlConfigured: Boolean(optionalEnv("EMAIL_APP_URL")),
+      },
     });
   }
 
