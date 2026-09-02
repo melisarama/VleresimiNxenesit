@@ -1,5 +1,24 @@
 import { supabaseClient } from '../lib/supabaseClient.js';
 
+function optionalStaffMoodResult(result) {
+  const message = result.error?.message || '';
+  if (result.error && (result.error.code === '42P01' || message.includes('staff_mood_logs'))) {
+    return { data: [], error: null };
+  }
+  return result;
+}
+
+async function fetchStaffMoodLogs(studentIds = []) {
+  if (!studentIds.length) return { data: [], error: null };
+  const result = await supabaseClient
+    .from('staff_mood_logs')
+    .select('id,student_id,reporter_id,reporter_role,mood,comment,context,reported_on,created_at,updated_at,profiles(first_name,last_name)')
+    .in('student_id', studentIds)
+    .order('reported_on', { ascending: false })
+    .order('created_at', { ascending: false });
+  return optionalStaffMoodResult(result);
+}
+
 export async function fetchTeacherDashboardData(userId) {
   const [
     profileResult,
@@ -60,6 +79,7 @@ export async function fetchTeacherDashboardData(userId) {
   let finalGradeResult = emptyArrayResult;
   let piaObjectiveResult = emptyArrayResult;
   let piaUpdateResult = emptyArrayResult;
+  let staffMoodResult = emptyArrayResult;
   let assistantProfileResult = emptyArrayResult;
 
   if (studentIds.length) {
@@ -70,12 +90,13 @@ export async function fetchTeacherDashboardData(userId) {
         : Promise.resolve(emptyArrayResult),
       supabaseClient.from('grades').select('id,score,parent_message,student_id,chapter_id,subject_id,academic_period_id,graded_at,updated_at,chapters(id,name),subjects(id,name)').in('student_id', studentIds),
       supabaseClient.from('daily_moods').select('student_id,mood,parent_comment,reported_on').in('student_id', studentIds).order('reported_on', { ascending: false }),
+      fetchStaffMoodLogs(studentIds),
       supabaseClient.from('final_grades').select('id,student_id,teacher_id,subject_id,academic_period_id,grade,parent_message,published_at,updated_at').in('student_id', studentIds),
       supabaseClient.from('pia_objectives').select('id,student_id,assistant_teacher_id,title,details,active,created_at,updated_at').in('student_id', studentIds).order('updated_at', { ascending: false }),
       supabaseClient.from('pia_objective_updates').select('id,objective_id,student_id,assistant_teacher_id,rating,comment,reported_on,created_at,updated_at').in('student_id', studentIds).order('reported_on', { ascending: false }).order('updated_at', { ascending: false })
     ]);
 
-    [supportResult, chapterResult, gradeResult, moodResult, finalGradeResult, piaObjectiveResult, piaUpdateResult] = scopedResults;
+    [supportResult, chapterResult, gradeResult, moodResult, staffMoodResult, finalGradeResult, piaObjectiveResult, piaUpdateResult] = scopedResults;
     scopedResults.forEach(result => {
       if (result.error) throw result.error;
     });
@@ -106,6 +127,7 @@ export async function fetchTeacherDashboardData(userId) {
     threadMessageResult,
     inboxNotificationResult,
     finalGradeResult,
+    staffMoodResult,
     preferenceResult,
     periodResult,
     piaObjectiveResult: {
@@ -176,14 +198,16 @@ export async function fetchAssistantTeacherDashboardData(userId) {
       threadMessages: threadMessageResult.data || [],
       notifications: notificationResult.data || [],
       preferences: preferenceResult.data || null,
+      staffMoodLogs: [],
       messageRecipients: {}
     };
   }
 
-  const [studentResult, supportResult, moodResult, piaObjectiveResult, piaUpdateResult, threadResult, threadMessageResult, notificationResult, preferenceResult] = await Promise.all([
+  const [studentResult, supportResult, moodResult, staffMoodResult, piaObjectiveResult, piaUpdateResult, threadResult, threadMessageResult, notificationResult, preferenceResult] = await Promise.all([
     supabaseClient.from('students').select('*,classes(school_year)').in('id', studentIds).order('last_name').order('first_name'),
     supabaseClient.from('student_support_profiles').select('*').in('student_id', studentIds),
     supabaseClient.from('daily_moods').select('student_id,mood,parent_comment,reported_on').in('student_id', studentIds).order('reported_on', { ascending: false }),
+    fetchStaffMoodLogs(studentIds),
     supabaseClient.from('pia_objectives').select('id,student_id,assistant_teacher_id,title,details,active,created_at,updated_at').in('student_id', studentIds).order('updated_at', { ascending: false }),
     supabaseClient.from('pia_objective_updates').select('id,objective_id,student_id,assistant_teacher_id,rating,comment,reported_on,created_at,updated_at').in('student_id', studentIds).order('reported_on', { ascending: false }).order('updated_at', { ascending: false }),
     supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,assistant_teacher_id,subject_id,title,parent_archived_at,teacher_archived_at,assistant_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name),teacher_profiles:profiles!communication_threads_teacher_id_fkey(first_name,last_name),assistant_profiles:profiles!communication_threads_assistant_teacher_id_fkey(first_name,last_name)').eq('assistant_teacher_id', userId).order('updated_at', { ascending: false }),
@@ -192,7 +216,7 @@ export async function fetchAssistantTeacherDashboardData(userId) {
     supabaseClient.from('teacher_notification_preferences').select('*').eq('profile_id', userId).maybeSingle()
   ]);
 
-  [studentResult, supportResult, moodResult, piaObjectiveResult, piaUpdateResult, threadResult, threadMessageResult, notificationResult, preferenceResult].forEach(result => {
+  [studentResult, supportResult, moodResult, staffMoodResult, piaObjectiveResult, piaUpdateResult, threadResult, threadMessageResult, notificationResult, preferenceResult].forEach(result => {
     if (result.error) throw result.error;
   });
 
@@ -220,6 +244,7 @@ export async function fetchAssistantTeacherDashboardData(userId) {
     students: studentResult.data || [],
     supportProfiles: supportResult.data || [],
     moods: moodResult.data || [],
+    staffMoodLogs: staffMoodResult.data || [],
     piaObjectives: (piaObjectiveResult.data || []).map(item => ({
       ...item,
       assistantName: assistantNames[item.assistant_teacher_id] || 'Asistenti'
@@ -254,6 +279,29 @@ export async function recordAssistantPiaUpdate({ objectiveId, rating, comment })
     progress_rating: Number(rating),
     progress_comment: comment
   });
+  if (error) throw error;
+  return data;
+}
+
+export async function saveStaffMoodLog({ studentId, mood, comment = '', context = '', reporterRole }) {
+  const userResult = await supabaseClient.auth.getUser();
+  if (userResult.error) throw userResult.error;
+  const userId = userResult.data?.user?.id;
+  if (!userId) throw new Error('AUTH_REQUIRED');
+
+  const { data, error } = await supabaseClient
+    .from('staff_mood_logs')
+    .insert({
+      student_id: studentId,
+      reporter_id: userId,
+      reporter_role: reporterRole,
+      mood: String(mood || '').trim(),
+      comment: String(comment || '').trim() || null,
+      context: String(context || '').trim() || null,
+      reported_on: new Date().toISOString().slice(0, 10)
+    })
+    .select('id,student_id,reporter_id,reporter_role,mood,comment,context,reported_on,created_at,updated_at,profiles(first_name,last_name)')
+    .single();
   if (error) throw error;
   return data;
 }

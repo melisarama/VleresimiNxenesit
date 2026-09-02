@@ -8,6 +8,7 @@ import {
   recordAssistantPiaUpdate,
   saveAssistantNotificationPreferences,
   saveAssistantPiaObjective,
+  saveStaffMoodLog,
   sendAssistantThreadMessage,
   startAssistantThread
 } from '../services/teacherService.js';
@@ -29,6 +30,26 @@ function escapeHtml(value = '') {
 function initials(name = '') {
   return name.split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase() || 'AT';
 }
+
+const staffMoodOptions = [
+  '😊 I qetë / mirë',
+  '🥱 I lodhur',
+  '⚡ Shqetësuar / energji e lartë',
+  '😄 I gëzuar',
+  '😟 Mërzitur / pa humor',
+  '🎯 I fokusuar',
+  '🌪️ I shpërqendruar',
+  '🤝 Bashkëpunues'
+];
+
+const staffMoodContexts = [
+  'Në fillim të ditës',
+  'Gjatë mbështetjes individuale',
+  'Gjatë orës',
+  'Pas pushimit',
+  'Punë në grup',
+  'Fund dite'
+];
 
 function formatDate(value, includeTime = true) {
   return formatSqDate(value, { includeTime });
@@ -203,6 +224,7 @@ export function initializeAssistantTeacherPrototype({ onLogout } = {}) {
   let students = [];
   let selectedStudent = null;
   let moodHistories = {};
+  let staffMoodLogs = {};
   let assistantName = 'Asistent';
   let assistantEmail = '';
   let assistantId = null;
@@ -361,14 +383,93 @@ export function initializeAssistantTeacherPrototype({ onLogout } = {}) {
   function renderHistoryDetail() {
     if (!selectedStudent) return;
     const history = moodHistories[selectedStudent.id] || [];
+    const staffLogs = staffMoodLogs[selectedStudent.id] || [];
     const current = selectedStudent.mood
       ? `<article class="teacher-current-mood"><small>Sot</small><strong>${escapeHtml(selectedStudent.mood)}</strong><p>${escapeHtml(selectedStudent.moodComment || 'Pa koment shtese.')}</p></article>`
       : '<div class="teacher-detail-empty"><strong>Pa gjendje te raportuar sot</strong><p>Familja nuk ka derguar ende nje perditesim per sot.</p></div>';
     const previous = history.length
       ? `<div class="teacher-history-list">${history.map(item => `<article><time>${escapeHtml(formatDate(`${item.reported_on}T12:00:00`))}</time><strong>${escapeHtml(item.mood)}</strong><p>${escapeHtml(item.parent_comment || 'Pa koment shtese.')}</p></article>`).join('')}</div>`
       : '<div class="teacher-detail-empty"><strong>Historiku eshte bosh</strong><p>Nuk ka ende hyrje te meparshme.</p></div>';
-    document.getElementById('assistantFolderDetail').innerHTML = `${detailHeading('Humori dhe historiku', `Vezhgimet ditore per ${selectedStudent.name}.`)}<div class="teacher-mood-summary">${current}${previous}</div>`;
+    document.getElementById('assistantFolderDetail').innerHTML = `${detailHeading('Humori dhe historiku', `Vezhgimet ditore per ${selectedStudent.name}.`)}<div class="teacher-mood-summary">${current}${previous}</div>${renderStaffMoodLogPanel(staffLogs)}`;
+    bindStaffMoodLogForm();
     showPanel('folder-detail', false);
+  }
+
+  function staffReporterLabel(log) {
+    const profile = log.profiles || {};
+    const name = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+    const role = log.reporter_role === 'assistant' ? 'Asistenti' : 'Mesimdhenesi';
+    return name ? `${role} - ${name}` : role;
+  }
+
+  function renderStaffMoodLogPanel(logs) {
+    const list = logs.length
+      ? logs.slice(0, 8).map(log => `<article>
+          <div>
+            <strong>${escapeHtml(log.mood)}</strong>
+            <small>${escapeHtml(staffReporterLabel(log))} - ${escapeHtml(formatDate(log.created_at || log.reported_on, true))}${log.context ? ` - ${escapeHtml(log.context)}` : ''}</small>
+          </div>
+          <p>${escapeHtml(log.comment || 'Pa koment shtese.')}</p>
+        </article>`).join('')
+      : '<div class="teacher-detail-empty"><strong>Pa log nga stafi</strong><p>Mund te shtoni vezhgim edhe nese prindi nuk ka raportuar sot.</p></div>';
+    return `<section class="staff-mood-log-panel">
+      <form class="staff-mood-log-form" id="assistantStaffMoodLogForm">
+        <div class="staff-mood-log-head">
+          <span>📝</span>
+          <div>
+            <h3>Shto vëzhgim nga asistenti</h3>
+            <p>Regjistro nje vezhgim te shkurter per disponimin gjate mbeshtetjes.</p>
+          </div>
+        </div>
+        <div class="teacher-form-grid">
+          <label>Humori / gjendja
+            <select name="mood" required>${staffMoodOptions.map(option => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join('')}</select>
+          </label>
+          <label>Konteksti
+            <select name="context">${staffMoodContexts.map(option => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join('')}</select>
+          </label>
+        </div>
+        <label>Komenti
+          <textarea name="comment" rows="4" maxlength="1200" placeholder="p.sh. Gjatë aktivitetit praktik kërkoi pushim, pastaj u rikthye më i qetë."></textarea>
+        </label>
+        <p class="teacher-assessment-status" aria-live="polite"></p>
+        <div class="teacher-form-actions">
+          <button class="teacher-primary-button" type="submit">Ruaj logun</button>
+        </div>
+      </form>
+      <div class="staff-mood-log-list">
+        <h3>Log-et nga stafi</h3>
+        ${list}
+      </div>
+    </section>`;
+  }
+
+  function bindStaffMoodLogForm() {
+    const form = document.getElementById('assistantStaffMoodLogForm');
+    if (!form || !selectedStudent) return;
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const status = form.querySelector('.teacher-assessment-status');
+      const submit = form.querySelector('[type="submit"]');
+      const formData = new FormData(form);
+      submit.disabled = true;
+      status.textContent = 'Duke ruajtur logun...';
+      try {
+        const saved = await saveStaffMoodLog({
+          studentId: selectedStudent.id,
+          mood: formData.get('mood'),
+          context: formData.get('context'),
+          comment: formData.get('comment'),
+          reporterRole: 'assistant'
+        });
+        staffMoodLogs[selectedStudent.id] = [saved, ...(staffMoodLogs[selectedStudent.id] || [])];
+        renderHistoryDetail();
+      } catch (error) {
+        status.textContent = error.message || 'Logu nuk u ruajt. Kontrolloni lidhjen me databazen.';
+      } finally {
+        submit.disabled = false;
+      }
+    });
   }
 
   function renderSupportDetail() {
@@ -918,6 +1019,7 @@ export function initializeAssistantTeacherPrototype({ onLogout } = {}) {
       students: nextStudents = [],
       moods = {},
       moodHistories: nextMoodHistories = {},
+      staffMoodLogs: nextStaffMoodLogs = {},
       piaObjectives: nextObjectives = [],
       piaUpdates: nextUpdates = [],
       messages: nextMessages = [],
@@ -943,6 +1045,7 @@ export function initializeAssistantTeacherPrototype({ onLogout } = {}) {
         moodComment: moods[student.name]?.comment || ''
       })) : [];
       moodHistories = nextMoodHistories;
+      staffMoodLogs = nextStaffMoodLogs || {};
       piaObjectives = Array.isArray(nextObjectives) ? nextObjectives.map(item => ({ ...item })) : [];
       piaUpdates = Array.isArray(nextUpdates) ? nextUpdates.map(item => ({ ...item })) : [];
       messages = Array.isArray(nextMessages) ? nextMessages.map(message => ({ ...message, messages: Array.isArray(message.messages) ? [...message.messages] : [] })) : [];

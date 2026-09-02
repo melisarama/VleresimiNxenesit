@@ -205,6 +205,60 @@
 .teacher-history-list { display:grid; gap:9px; }
 .teacher-history-list article { display:grid; grid-template-columns:74px 32px 1fr; align-items:start; gap:10px; padding:12px 0; border-bottom:1px solid var(--tp-line); }
 .teacher-history-list time,.teacher-history-list p { color:var(--tp-muted); font-size:12px; }
+.staff-mood-log-panel { display:grid; gap:16px; margin-top:22px; }
+.staff-mood-log-form {
+  display:grid;
+  gap:15px;
+  padding:20px;
+  border:1px solid #ded8eb;
+  border-radius:18px;
+  background:linear-gradient(145deg,rgba(255,255,255,.96),rgba(247,244,255,.94));
+  box-shadow:0 14px 30px rgba(74,65,110,.08);
+}
+.staff-mood-log-head { display:flex; align-items:center; gap:12px; }
+.staff-mood-log-head > span {
+  width:42px;
+  height:42px;
+  display:grid;
+  place-items:center;
+  border-radius:14px;
+  background:linear-gradient(145deg,#fff0e8,#f1ecff);
+  font-size:21px;
+}
+.staff-mood-log-head h3,.staff-mood-log-list h3 { font-size:16px; }
+.staff-mood-log-head p { margin-top:4px; color:var(--tp-muted); font-size:12px; line-height:1.45; }
+.staff-mood-log-form label { display:grid; gap:6px; color:#46504b; font-size:12px; font-weight:700; }
+.staff-mood-log-form select,.staff-mood-log-form textarea {
+  min-height:40px;
+  padding:8px 10px;
+  border:1px solid #d8d0e9;
+  border-radius:11px;
+  color:var(--tp-ink);
+  background:#fff;
+}
+.staff-mood-log-form select:focus,.staff-mood-log-form textarea:focus {
+  outline:3px solid rgba(112,86,196,.13);
+  border-color:#8d74dc;
+}
+.staff-mood-log-list {
+  display:grid;
+  gap:10px;
+  padding:18px;
+  border:1px solid #e0daed;
+  border-radius:18px;
+  background:rgba(255,255,255,.88);
+  box-shadow:0 10px 24px rgba(74,65,110,.06);
+}
+.staff-mood-log-list article {
+  display:grid;
+  gap:7px;
+  padding:13px 14px;
+  border:1px solid #eeeaf4;
+  border-radius:14px;
+  background:linear-gradient(145deg,#fff,#fbf9ff);
+}
+.staff-mood-log-list article strong { color:var(--tp-ink); }
+.staff-mood-log-list article small,.staff-mood-log-list article p { color:var(--tp-muted); font-size:12px; line-height:1.5; }
 .teacher-preference-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .teacher-preference-grid article { padding:17px; border:1px solid var(--tp-line); border-radius:7px; background:#fff; }
 .teacher-preference-grid span { color:var(--tp-green); font-size:11px; font-weight:800; text-transform:uppercase; }

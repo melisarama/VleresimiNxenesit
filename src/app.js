@@ -87,6 +87,18 @@ function buildMoodState(moods, students) {
   return { todayMoods, moodHistories };
 }
 
+function buildStaffMoodLogState(logs = []) {
+  return logs.reduce((history, item) => {
+    (history[item.student_id] ||= []).push(item);
+    history[item.student_id].sort((left, right) => {
+      const leftDate = left.created_at || left.reported_on;
+      const rightDate = right.created_at || right.reported_on;
+      return new Date(rightDate) - new Date(leftDate);
+    });
+    return history;
+  }, {});
+}
+
 function profileName(profile, fallback) {
   if (!profile) return fallback;
   const name = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
@@ -311,6 +323,7 @@ async function loadTeacherData(user, shouldStartRealtime = true) {
   const threadMessages = resultData(results.threadMessageResult);
   const inboxNotifications = resultData(results.inboxNotificationResult);
   const finalGrades = resultData(results.finalGradeResult);
+  const staffMoodLogs = resultData(results.staffMoodResult);
   const periods = resultData(results.periodResult);
   const piaObjectives = resultData(results.piaObjectiveResult);
   const piaUpdates = resultData(results.piaUpdateResult);
@@ -319,6 +332,7 @@ async function loadTeacherData(user, shouldStartRealtime = true) {
   const students = buildStudentRows(studentRows, supportRows);
   const inboxMessages = buildTeacherInbox(user.id, students, threads, threadMessages, inboxNotifications);
   const { todayMoods, moodHistories } = buildMoodState(moods, students);
+  const staffMoodLogHistory = buildStaffMoodLogState(staffMoodLogs);
 
   teacherPrototype.setData({
     teacherName: `${profile.first_name} ${profile.last_name}`,
@@ -336,6 +350,7 @@ async function loadTeacherData(user, shouldStartRealtime = true) {
     students,
     moods: todayMoods,
     moodHistories,
+    staffMoodLogs: staffMoodLogHistory,
     messages: inboxMessages,
     chapters,
     assessments,
@@ -355,6 +370,7 @@ async function loadAssistantTeacherData(user, shouldStartRealtime = true) {
 
   const students = buildStudentRows(results.students || [], results.supportProfiles || []);
   const { todayMoods, moodHistories } = buildMoodState(results.moods || [], students);
+  const staffMoodLogHistory = buildStaffMoodLogState(results.staffMoodLogs || []);
   const inboxMessages = buildAssistantInbox(user.id, students, results.threads || [], results.threadMessages || [], results.notifications || []);
 
   assistantTeacherPrototype.setData({
@@ -364,6 +380,7 @@ async function loadAssistantTeacherData(user, shouldStartRealtime = true) {
     students,
     moods: todayMoods,
     moodHistories,
+    staffMoodLogs: staffMoodLogHistory,
     piaObjectives: results.piaObjectives || [],
     piaUpdates: results.piaUpdates || [],
     messages: inboxMessages,

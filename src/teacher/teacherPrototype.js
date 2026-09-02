@@ -16,6 +16,7 @@ import {
   markTeacherThreadUnread,
   requestTeacherSupport,
   saveChapterAssessment,
+  saveStaffMoodLog,
   saveTeacherFinalGrade,
   saveTeacherNotificationPreferences,
   sendTeacherThreadMessage
@@ -38,6 +39,26 @@ function initials(name = '') {
   return name.split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase() || 'NX';
 }
 
+const staffMoodOptions = [
+  '😊 I qetë / mirë',
+  '🥱 I lodhur',
+  '⚡ Shqetësuar / energji e lartë',
+  '😄 I gëzuar',
+  '😟 Mërzitur / pa humor',
+  '🎯 I fokusuar',
+  '🌪️ I shpërqendruar',
+  '🤝 Bashkëpunues'
+];
+
+const staffMoodContexts = [
+  'Në fillim të orës',
+  'Gjatë orës',
+  'Pas pushimit',
+  'Punë individuale',
+  'Punë në grup',
+  'Fund dite'
+];
+
 export function initializeTeacherPrototype({ onLogout } = {}) {
   const root = document.getElementById('teacherPrototype');
   if (!root) return { setData() {} };
@@ -45,6 +66,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   let students = [];
   let selectedStudent = null;
   let moodHistories = {};
+  let staffMoodLogs = {};
   let messages = [];
   let unreadOnly = false;
   let activeMessageId = null;
@@ -200,13 +222,94 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   function renderMoodDetail() {
     const heading = detailHeading('Humori ditor dhe historiku', `Njoftimet për ${selectedStudent.name} nga prindi.`);
     const history = (moodHistories[selectedStudent.id] || []).filter(item => item.reported_on !== todayIso());
+    const staffLogs = staffMoodLogs[selectedStudent.id] || [];
     const current = selectedStudent.mood
       ? `<article class="teacher-current-mood"><small>Sot</small><strong>${escapeHtml(selectedStudent.mood)}</strong><p>${escapeHtml(selectedStudent.moodComment || 'Pa koment shtesë.')}</p></article>`
       : '<div class="teacher-detail-empty"><strong>Pa gjendje të raportuar sot</strong><p>Prindi nuk ka dërguar ende një përditësim për ditën e sotme.</p></div>';
     const previous = history.length
       ? `<div class="teacher-history-list">${history.map(item => `<article><time>${escapeHtml(formatSqDate(item.reported_on))}</time><strong>${escapeHtml(item.mood)}</strong><p>${escapeHtml(item.parent_comment || 'Pa koment shtesë.')}</p></article>`).join('')}</div>`
       : '<div class="teacher-detail-empty"><strong>Nuk ka hyrje të mëparshme</strong><p>Historiku është bosh.</p></div>';
-    return `${heading}<div class="teacher-mood-summary">${current}${previous}</div>`;
+    return `${heading}<div class="teacher-mood-summary">${current}${previous}</div>${renderStaffMoodLogPanel(staffLogs, 'teacher')}`;
+  }
+
+  function staffReporterLabel(log) {
+    const profile = log.profiles || {};
+    const name = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+    const role = log.reporter_role === 'assistant' ? 'Asistenti' : 'Mësimdhënësi';
+    return name ? `${role} · ${name}` : role;
+  }
+
+  function renderStaffMoodLogPanel(logs, reporterRole) {
+    const formTitle = reporterRole === 'assistant' ? 'Shto vëzhgim nga asistenti' : 'Shto vëzhgim nga mësimdhënësi';
+    const list = logs.length
+      ? logs.slice(0, 8).map(log => `<article>
+          <div>
+            <strong>${escapeHtml(log.mood)}</strong>
+            <small>${escapeHtml(staffReporterLabel(log))} · ${escapeHtml(formatSqDate(log.created_at || log.reported_on, { includeTime: true }))}${log.context ? ` · ${escapeHtml(log.context)}` : ''}</small>
+          </div>
+          <p>${escapeHtml(log.comment || 'Pa koment shtesë.')}</p>
+        </article>`).join('')
+      : '<div class="teacher-detail-empty"><strong>Pa log nga stafi</strong><p>Mund të shtoni vëzhgim edhe nëse prindi nuk ka raportuar sot.</p></div>';
+    return `<section class="staff-mood-log-panel">
+      <form class="staff-mood-log-form" id="teacherStaffMoodLogForm">
+        <div class="staff-mood-log-head">
+          <span>📝</span>
+          <div>
+            <h3>${escapeHtml(formTitle)}</h3>
+            <p>Regjistro një vëzhgim të shkurtër për disponimin gjatë ditës.</p>
+          </div>
+        </div>
+        <div class="teacher-form-grid">
+          <label>Humori / gjendja
+            <select name="mood" required>${staffMoodOptions.map(option => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join('')}</select>
+          </label>
+          <label>Konteksti
+            <select name="context">${staffMoodContexts.map(option => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join('')}</select>
+          </label>
+        </div>
+        <label>Komenti
+          <textarea name="comment" rows="4" maxlength="1200" placeholder="p.sh. Gjatë leximit u lodh shpejt, por u qetësua kur iu dha pushim i shkurtër vizual."></textarea>
+        </label>
+        <p class="teacher-assessment-status" aria-live="polite"></p>
+        <div class="teacher-form-actions">
+          <button class="teacher-primary-button" type="submit">Ruaj logun</button>
+        </div>
+      </form>
+      <div class="staff-mood-log-list">
+        <h3>Log-et nga stafi</h3>
+        ${list}
+      </div>
+    </section>`;
+  }
+
+  function bindStaffMoodLogForm(reporterRole = 'teacher') {
+    const form = document.getElementById('teacherStaffMoodLogForm');
+    if (!form || !selectedStudent) return;
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const status = form.querySelector('.teacher-assessment-status');
+      const submit = form.querySelector('[type="submit"]');
+      const formData = new FormData(form);
+      submit.disabled = true;
+      status.textContent = 'Duke ruajtur logun...';
+      try {
+        const saved = await saveStaffMoodLog({
+          studentId: selectedStudent.id,
+          mood: formData.get('mood'),
+          context: formData.get('context'),
+          comment: formData.get('comment'),
+          reporterRole
+        });
+        staffMoodLogs[selectedStudent.id] = [saved, ...(staffMoodLogs[selectedStudent.id] || [])];
+        const detail = document.getElementById('teacherFolderDetail');
+        detail.innerHTML = renderMoodDetail();
+        bindStaffMoodLogForm(reporterRole);
+      } catch (error) {
+        status.textContent = error.message || 'Logu nuk u ruajt. Kontrolloni lidhjen me databazën.';
+      } finally {
+        submit.disabled = false;
+      }
+    });
   }
 
   function renderPreferencesDetail() {
@@ -642,7 +745,10 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
     showPanel('folder-detail', false);
     setDetailBack('Dosja e nxënësit', () => openFolder(selectedStudent));
     const detail = document.getElementById('teacherFolderDetail');
-    if (action === 'mood') detail.innerHTML = renderMoodDetail();
+    if (action === 'mood') {
+      detail.innerHTML = renderMoodDetail();
+      bindStaffMoodLogForm('teacher');
+    }
     if (action === 'preferences') detail.innerHTML = renderPreferencesDetail();
     if (action === 'pia') detail.innerHTML = renderPiaDetail();
     if (action === 'assessments') renderAssessmentDetail();
@@ -1052,7 +1158,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
   renderSupportPanel();
 
   return {
-    setData({ teacherName, teacherEmail = '', teacherId, schoolId, teacherSubjects = [], subjects = [], teacherClassAssignments = [], teacherStudentAssignments = [], academicPeriods: nextPeriods = [], students: nextStudents = [], moods = {}, moodHistories: nextMoodHistories = {}, messages: nextMessages = [], chapters = [], assessments = [], finalGrades = [], preferences = null, piaObjectives = [], piaUpdates = [] } = {}) {
+    setData({ teacherName, teacherEmail = '', teacherId, schoolId, teacherSubjects = [], subjects = [], teacherClassAssignments = [], teacherStudentAssignments = [], academicPeriods: nextPeriods = [], students: nextStudents = [], moods = {}, moodHistories: nextMoodHistories = {}, staffMoodLogs: nextStaffMoodLogs = {}, messages: nextMessages = [], chapters = [], assessments = [], finalGrades = [], preferences = null, piaObjectives = [], piaUpdates = [] } = {}) {
       if (teacherId && teacherId !== supportOwnerId) {
         supportOwnerId = teacherId;
         supportStudentId = null;
@@ -1066,6 +1172,7 @@ export function initializeTeacherPrototype({ onLogout } = {}) {
       const previousStudentId = selectedStudent?.id || null;
       students = Array.isArray(nextStudents) ? nextStudents.map(student => ({ ...student, mood: moods[student.name]?.mood || '', moodComment: moods[student.name]?.comment || '' })) : [];
       moodHistories = nextMoodHistories;
+      staffMoodLogs = nextStaffMoodLogs || {};
       selectedStudent = students.find(student => student.id === previousStudentId) || students[0] || null;
       materialContext = {
         teacherId: teacherId || materialContext.teacherId,

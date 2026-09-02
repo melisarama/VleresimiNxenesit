@@ -36,6 +36,7 @@ export function subscribeToTeacherWorkspace(userId, onChange) {
     { table: 'teacher_students', filter: `teacher_id=eq.${userId}` },
     { table: 'students' },
     { table: 'daily_moods' },
+    { table: 'staff_mood_logs' },
     { table: 'grades' },
     { table: 'final_grades', filter: `teacher_id=eq.${userId}` },
     { table: 'student_support_profiles' },
@@ -58,6 +59,7 @@ export function subscribeToAssistantWorkspace(userId, onChange) {
     { table: 'communication_threads', filter: `assistant_teacher_id=eq.${userId}` },
     { table: 'assistant_teacher_students', filter: `assistant_teacher_id=eq.${userId}` },
     { table: 'daily_moods' },
+    { table: 'staff_mood_logs' },
     { table: 'student_support_profiles' },
     { table: 'pia_objectives' },
     { table: 'pia_objective_updates' }

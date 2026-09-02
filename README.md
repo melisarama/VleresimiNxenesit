@@ -22,6 +22,7 @@ A mobile-first application for collaboration between teachers and parents in Kos
 - Saved email-notification preferences; delivery will be implemented later.
 - Live inbox and notification updates through Supabase Realtime without refreshing the page.
 - AI pedagogical assistant for immediate classroom situations with a teacher-facing chat panel.
+- Teacher and assistant-teacher mood logs for student observations during the school day, even when no parent mood was submitted.
 
 ### For Parents
 
@@ -152,6 +153,7 @@ Remove `?dry_run=true` only when you intentionally want to send queued emails.
 - Daily mood updates notify every teacher assigned to the child and remain available in the child's mood history.
 - A teacher can read and assess only their assigned students and subjects.
 - Assistant teachers are stored as teacher profiles with an `is_assistant_teacher` flag, sign in through the teacher login, and are intentionally excluded from teacher-only grading and AI-assistant actions.
+- Staff mood logs are separated from parent daily mood submissions, so school observations do not overwrite the parent's morning update.
 - Teachers can add or change assessments only in the active period matching the student's class school year.
 - Subject-specific class assignments prevent more than one main teacher from being assigned to the same class and subject at the same time.
 - Final grades may be published before every chapter is assessed, but the teacher sees a warning and must type the selected student's full name. The database validates this confirmation.
@@ -183,7 +185,7 @@ Remove `?dry_run=true` only when you intentionally want to send queued emails.
 
 ## Status
 
-The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow and the main teacher and parent workflows are database-backed, including persisted school data, responsive mobile workspaces, assessments, materials, mood history, notifications, shared inbox conversations, saved email preferences, and the teacher AI support panel. Assistant teachers now have protected account creation, student assignment, teacher-login routing, a dedicated workspace for assigned children, and a separate PIA workflow with parent-visible progress updates. Main-teacher access is now driven by class plus subject assignments instead of manual student mapping for the normal flow. Production email delivery, complete adversarial RLS testing, a refreshed fictional test dataset, and a review of children's data privacy are still required before a pilot.
+The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow and the main teacher and parent workflows are database-backed, including persisted school data, responsive mobile workspaces, assessments, materials, mood history, staff mood observations, notifications, shared inbox conversations, saved email preferences, and the teacher AI support panel. Assistant teachers now have protected account creation, student assignment, teacher-login routing, a dedicated workspace for assigned children, and a separate PIA workflow with parent-visible progress updates. Main-teacher access is now driven by class plus subject assignments instead of manual student mapping for the normal flow. Production email delivery, complete adversarial RLS testing, a refreshed fictional test dataset, and a review of children's data privacy are still required before a pilot.
 
 ## Remaining Implementation Work
 
