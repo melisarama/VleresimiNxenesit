@@ -91,10 +91,10 @@ function Try-Send-StaticFile {
 
 function Get-SupportReply {
     param([string]$Message)
-    if ([string]::IsNullOrWhiteSpace($env:OPENAI_API_KEY)) { throw 'OPENAI_API_KEY_MISSING' }
+    if ([string]::IsNullOrWhiteSpace($env:OPENROUTER_API_KEY)) { throw 'OPENROUTER_API_KEY_MISSING' }
 
-    $model = if ([string]::IsNullOrWhiteSpace($env:OPENAI_MODEL)) { 'gpt-5.6' } else { $env:OPENAI_MODEL.Trim() }
-    $instructions = @'
+    $model = 'openrouter/free'
+    $systemInstruction = @"
 Ti je një asistent pedagogjik në kohë reale për mësimdhënës në Kosovë. Përgjigju vetëm në shqip, qartë dhe shkurt, duke u bazuar drejtpërdrejt në situatën e fundit të shkruar nga mësimdhënësi.
 
 Jep hapa që mësimdhënësi mund t'i zbatojë menjëherë në klasë. Mos vendos diagnoza, mos e fajëso fëmijën dhe mos paraqit një shkak si të sigurt. Përmend shkurt shkaqe të mundshme vetëm kur ndihmon, si mbingarkesa shqisore, frustrimi, lodhja, vështirësia me detyrën ose nevoja për komunikim.
@@ -105,37 +105,34 @@ Përdor këtë format:
 3. Një fjali shumë të shkurtër për çfarë të vëzhgohet më pas.
 
 Mos përdor hyrje të përgjithshme, mos përsërit modele të gatshme dhe mos kërko të dhëna personale ose mjekësore. Nëse ka rrezik të menjëhershëm, dhunë, vetëlëndim ose rrezik për të tjerët, udhëzo fillimisht sigurimin e fëmijës, aktivizimin e protokollit të mbrojtjes së shkollës dhe kontaktimin e shërbimeve emergjente lokale. Këshilla nuk zëvendëson profesionistët ose procedurat e shkollës.
-'@
-    $requestJson = @{
+"@
+    $requestBody = @{
         model = $model
-        reasoning = @{ effort = 'low' }
-        instructions = $instructions
-        input = $Message
-        max_output_tokens = 500
-        store = $false
-    } | ConvertTo-Json -Depth 6
-    $headers = @{ Authorization = "Bearer $($env:OPENAI_API_KEY)"; 'Content-Type' = 'application/json' }
-    $response = Invoke-RestMethod -Method Post -Uri 'https://api.openai.com/v1/responses' -Headers $headers -Body $utf8.GetBytes($requestJson) -TimeoutSec 60
-
-    $parts = @()
-    foreach ($item in @($response.output)) {
-        foreach ($content in @($item.content)) {
-            if ($content.type -eq 'output_text' -and $content.text) { $parts += [string]$content.text }
+        messages = @(
+            @{ role = 'system'; content = $systemInstruction }
+            @{ role = 'user'; content = $Message }
+        )
+        temperature = 0.2
+        max_tokens = 400
+        reasoning = @{
+            effort = 'none'
+            exclude = $true
         }
-    }
-    $reply = ($parts -join "`n").Trim()
-    if (-not $reply) { throw 'OpenAI nuk ktheu tekst.' }
-    return $reply
+    } | ConvertTo-Json -Depth 8
+    $response = Invoke-RestMethod -Method Post -Uri 'https://openrouter.ai/api/v1/chat/completions' -Headers @{ 'Content-Type' = 'application/json'; 'Authorization' = "Bearer $($env:OPENROUTER_API_KEY)" } -Body $utf8.GetBytes($requestBody) -TimeoutSec 60
+    $reply = $response.choices[0].message.content
+    if (-not $reply) { throw 'OpenRouter AI nuk ktheu tekst.' }
+    return $reply.Trim()
 }
 
 try {
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
     $listener.Start()
     Write-Host "Local server is running at http://localhost:$port/"
-    if ([string]::IsNullOrWhiteSpace($env:OPENAI_API_KEY)) {
-        Write-Warning 'AI support is not configured. Set OPENAI_API_KEY and restart this server.'
+    if ([string]::IsNullOrWhiteSpace($env:OPENROUTER_API_KEY)) {
+        Write-Warning 'AI support is not configured. Set OPENROUTER_API_KEY in .env and restart this server.'
     } else {
-        Write-Host 'AI support is configured for Mbeshtetja.'
+        Write-Host 'AI support is configured for OpenRouter free router.'
     }
 
     while ($true) {
@@ -178,8 +175,8 @@ try {
                         Send-Json $stream 200 @{ reply = (Get-SupportReply $message.Trim()) }
                     }
                 } catch {
-                    if ($_.Exception.Message -eq 'OPENAI_API_KEY_MISSING') {
-                        Send-Json $stream 503 @{ error = 'AI nuk është konfiguruar. Vendosni OPENAI_API_KEY në PowerShell dhe rinisni serverin.' }
+                    if ($_.Exception.Message -eq 'OPENROUTER_API_KEY_MISSING') {
+                        Send-Json $stream 503 @{ error = 'AI nuk është konfiguruar. Vendosni OPENROUTER_API_KEY në .env dhe rinisni serverin.' }
                     } else {
                         Write-Warning "AI request failed: $($_.Exception.Message)"
                         Send-Json $stream 503 @{ error = 'Asistenti AI nuk mundi të përgjigjet tani. Kontrolloni lidhjen dhe çelësin API.' }

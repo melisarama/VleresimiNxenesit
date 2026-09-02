@@ -55,6 +55,7 @@
     #parentPage .password-toggle:hover { background:rgba(117,87,213,.11); }
     #parentPage #continueParent { width:100%; min-height:50px; margin-top:25px; border:0; border-radius:16px; background:linear-gradient(145deg,#7055c8,#8968e0); box-shadow:0 10px 18px rgba(99,75,184,.24),0 0 22px rgba(132,103,222,.18); font-size:16px; }
     #parentPage #backToRoles { margin-top:6px; border:0; background:transparent; color:#654fb3; text-decoration:underline; text-decoration-color:rgba(101,79,179,.45); text-underline-offset:4px; }
+    .sr-only { padding-right:5px; }
     .hidden { display:none !important; }
     .phone { width:min(100%,430px); overflow:hidden; border:1px solid rgba(255,255,255,.7); border-radius:30px; background:var(--paper); box-shadow:0 20px 50px rgba(78,89,129,.2); }
     header { padding:14px 20px 21px; background:linear-gradient(125deg,#ddd5ff,#e2efff); }

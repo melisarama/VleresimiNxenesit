@@ -5,6 +5,40 @@ function throwOnError(result) {
   return result.data;
 }
 
+function optionalStaffMoodResult(result) {
+  const message = result.error?.message || '';
+  if (result.error && (result.error.code === '42P01' || message.includes('staff_mood_logs'))) {
+    return { data: [], error: null };
+  }
+  return result;
+}
+
+async function fetchStaffMoodLogs(studentId) {
+  if (!studentId) return { data: [], error: null };
+  const result = await supabaseClient
+    .from('staff_mood_logs')
+    .select('id,student_id,reporter_id,reporter_role,mood,comment,context,reported_on,created_at,updated_at,profiles(first_name,last_name)')
+    .eq('student_id', studentId)
+    .order('reported_on', { ascending: false })
+    .order('created_at', { ascending: false });
+  return optionalStaffMoodResult(result);
+}
+
+function normalizeSupportProfile(row) {
+  if (!row) return null;
+  const preferences = row.preferences || {};
+  return {
+    ...row,
+    preferences,
+    supportSummary: row.support_summary || preferences.support_summary || '',
+    accessibilityInformation: row.accessibility_information || preferences.accessibility_information || '',
+    additionalNotes: preferences.additional_notes || '',
+    supportPreferences: preferences.support_preferences || preferences.learning_preferences || [],
+    communicationLanguage: preferences.communication_language || '',
+    communicationMethod: preferences.communication_method || ''
+  };
+}
+
 export async function fetchParentChildren(userId) {
   return throwOnError(await supabaseClient
     .from('parent_students')
@@ -19,15 +53,18 @@ export async function fetchParentWorkspaceData(studentId, userId) {
     supabaseClient.from('grades').select('id,score,parent_message,graded_at,updated_at,chapter_id,subject_id,academic_period_id,chapters(name),subjects(name),academic_periods(id,name,school_year,status)').eq('student_id', studentId).order('graded_at', { ascending: false }),
     supabaseClient.from('final_grades').select('id,grade,parent_message,published_at,subject_id,academic_period_id,subjects(name),academic_periods(id,name,school_year,status)').eq('student_id', studentId).order('published_at', { ascending: false }),
     supabaseClient.from('daily_moods').select('id,mood,parent_comment,general_comment,reported_on,updated_at').eq('student_id', studentId).order('reported_on', { ascending: false }),
-    supabaseClient.from('student_support_profiles').select('student_id,preferences,updated_at').eq('student_id', studentId).maybeSingle(),
+    supabaseClient.from('student_support_profiles').select('student_id,support_summary,preferences,accessibility_information,updated_at').eq('student_id', studentId).maybeSingle(),
     supabaseClient.rpc('parent_teacher_options', { target_student: studentId }),
-    supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,subject_id,title,parent_archived_at,created_at,updated_at,subjects(name)').eq('student_id', studentId).eq('parent_id', userId).is('parent_archived_at', null).order('updated_at', { ascending: false }),
+    supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,assistant_teacher_id,subject_id,title,parent_archived_at,assistant_archived_at,created_at,updated_at,subjects(name),assistant_profiles:profiles!communication_threads_assistant_teacher_id_fkey(first_name,last_name),teacher_profiles:profiles!communication_threads_teacher_id_fkey(first_name,last_name)').eq('student_id', studentId).eq('parent_id', userId).is('parent_archived_at', null).order('updated_at', { ascending: false }),
     supabaseClient.from('user_notifications').select('*').eq('recipient_id', userId).eq('student_id', studentId).order('created_at', { ascending: false }),
     supabaseClient.from('parent_notification_preferences').select('*').eq('profile_id', userId).maybeSingle(),
-    supabaseClient.from('class_material_recipients').select('student_id,material_id,class_materials(id,title,description,created_at,expires_at,subject_id,subjects(name),class_material_files(id,original_name,mime_type,byte_size,storage_path))').eq('student_id', studentId)
+    supabaseClient.from('class_material_recipients').select('student_id,material_id,class_materials(id,title,description,created_at,expires_at,subject_id,subjects(name),class_material_files(id,original_name,mime_type,byte_size,storage_path))').eq('student_id', studentId),
+    supabaseClient.from('pia_objectives').select('id,student_id,assistant_teacher_id,title,details,active,created_at,updated_at').eq('student_id', studentId).order('updated_at', { ascending: false }),
+    supabaseClient.from('pia_objective_updates').select('id,objective_id,student_id,assistant_teacher_id,rating,comment,reported_on,created_at,updated_at').eq('student_id', studentId).order('reported_on', { ascending: false }).order('updated_at', { ascending: false }),
+    fetchStaffMoodLogs(studentId)
   ]);
-  const [profileResult, gradeResult, finalGradeResult, moodResult, supportResult, teacherOptionResult, threadResult, notificationResult, preferenceResult, materialResult] = baseResults;
-  [profileResult, gradeResult, finalGradeResult, moodResult, supportResult, teacherOptionResult, threadResult, notificationResult, preferenceResult, materialResult].forEach(result => {
+  const [profileResult, gradeResult, finalGradeResult, moodResult, supportResult, teacherOptionResult, threadResult, notificationResult, preferenceResult, materialResult, piaObjectiveResult, piaUpdateResult, staffMoodResult] = baseResults;
+  [profileResult, gradeResult, finalGradeResult, moodResult, supportResult, teacherOptionResult, threadResult, notificationResult, preferenceResult, materialResult, piaObjectiveResult, piaUpdateResult, staffMoodResult].forEach(result => {
     if (result.error) throw result.error;
   });
   const threads = threadResult.data || [];
@@ -35,18 +72,36 @@ export async function fetchParentWorkspaceData(studentId, userId) {
     ? await supabaseClient.from('communication_messages').select('*').in('thread_id', threads.map(thread => thread.id)).order('created_at')
     : { data: [], error: null };
   if (messageResult.error) throw messageResult.error;
+
+  const assistantIds = [...new Set([...(piaObjectiveResult.data || []), ...(piaUpdateResult.data || [])].map(row => row.assistant_teacher_id).filter(Boolean))];
+  const assistantProfileResult = assistantIds.length
+    ? await supabaseClient.from('profiles').select('id,first_name,last_name').in('id', assistantIds)
+    : { data: [], error: null };
+  if (assistantProfileResult.error) throw assistantProfileResult.error;
+
+  const assistantNames = Object.fromEntries((assistantProfileResult.data || []).map(profile => [profile.id, `${profile.first_name} ${profile.last_name}`.trim()]));
+
   return {
     profile: profileResult.data,
     grades: gradeResult.data || [],
     finalGrades: finalGradeResult.data || [],
     moods: moodResult.data || [],
-    supportProfile: supportResult.data,
+    supportProfile: normalizeSupportProfile(supportResult.data),
     teacherOptions: teacherOptionResult.data || [],
     threads,
     messages: messageResult.data || [],
     notifications: notificationResult.data || [],
     preferences: preferenceResult.data,
-    materials: (materialResult.data || []).map(row => row.class_materials).filter(Boolean)
+    materials: (materialResult.data || []).map(row => row.class_materials).filter(Boolean),
+    staffMoodLogs: staffMoodResult.data || [],
+    piaObjectives: (piaObjectiveResult.data || []).map(item => ({
+      ...item,
+      assistantName: assistantNames[item.assistant_teacher_id] || 'Asistenti'
+    })),
+    piaUpdates: (piaUpdateResult.data || []).map(item => ({
+      ...item,
+      assistantName: assistantNames[item.assistant_teacher_id] || 'Asistenti'
+    }))
   };
 }
 
@@ -68,6 +123,10 @@ export async function markParentThreadRead(threadId) {
   return throwOnError(await supabaseClient.rpc('mark_communication_thread_read', { target_thread: threadId }));
 }
 
+export async function markParentThreadUnread(threadId) {
+  return throwOnError(await supabaseClient.rpc('mark_communication_thread_unread', { target_thread: threadId }));
+}
+
 export async function archiveParentThread(threadId) {
   return throwOnError(await supabaseClient.rpc('archive_communication_thread', { target_thread: threadId }));
 }
@@ -76,13 +135,28 @@ export async function markParentNotificationRead(notificationId) {
   return throwOnError(await supabaseClient.rpc('mark_user_notification_read', { target_notification: notificationId }));
 }
 
-export async function saveParentStudentPreferences({ studentId, learningPreferences, communicationLanguage, communicationMethod }) {
-  return throwOnError(await supabaseClient.rpc('save_parent_student_preferences', {
+export async function markParentNotificationUnread(notificationId) {
+  return throwOnError(await supabaseClient.rpc('mark_user_notification_unread', { target_notification: notificationId }));
+}
+
+export async function saveParentStudentPreferences({
+  studentId,
+  learningPreferences,
+  communicationLanguage,
+  communicationMethod,
+  supportSummary,
+  accessibilityInformation,
+  additionalNotes
+}) {
+  return normalizeSupportProfile(throwOnError(await supabaseClient.rpc('save_parent_student_preferences', {
     target_student: studentId,
     learning_preferences: learningPreferences,
     communication_language: communicationLanguage,
-    communication_method: communicationMethod
-  }));
+    communication_method: communicationMethod,
+    support_summary: supportSummary,
+    accessibility_information: accessibilityInformation,
+    additional_notes: additionalNotes
+  })));
 }
 
 export async function saveParentNotificationPreferences({ profileId, email, teacherMessageEmails, assessmentEmails, materialEmails }) {

@@ -7,6 +7,8 @@ A mobile-first application for collaboration between teachers and parents in Kos
 ### For Teachers
 
 - Student registry and individual student folder.
+- Assistant teachers use the same teacher login but are routed to a separate assistant workspace when their profile is marked accordingly.
+- Assistant teachers can create student-specific PIA objectives, record ranked progress updates with comments, and send those updates to parents in-app.
 - Daily mood and notification from the parent.
 - Parent-message inbox with persistent read status and confirmed deletion.
 - Database-backed replies to parent messages.
@@ -19,31 +21,37 @@ A mobile-first application for collaboration between teachers and parents in Kos
 - Continuous chapter assessment and final grades by academic period.
 - Saved email-notification preferences; delivery will be implemented later.
 - Live inbox and notification updates through Supabase Realtime without refreshing the page.
-- AI pedagogical assistant backend for immediate classroom situations; the current teacher-facing UI still needs to be connected.
+- AI pedagogical assistant for immediate classroom situations with a teacher-facing chat panel.
+- Teacher and assistant-teacher mood logs for student observations during the school day, even when no parent mood was submitted.
 
 ### For Parents
 
 - Switching between children linked to the parent by a school administrator.
 - Reporting each child's daily mood and an optional comment to all assigned teachers.
-- Reviewing previous mood entries and comments.
-- Viewing chapter assessments, teacher comments, averages, and final grades by subject and academic period.
+- Reviewing previous mood entries and comments, including same-day resubmission without duplicate records.
+- Viewing chapter assessments, teacher comments, averages, and final grades by subject and academic period, with subject options sourced from the student's assigned class-subject teachers.
 - Viewing and downloading assigned materials, including publication and deletion dates.
 - Starting subject-specific conversations with teachers assigned to the selected child.
 - Replying to teacher messages, tracking unread conversations, and archiving conversations from the parent's inbox.
-- Receiving in-app notifications for assessments, final grades, materials, teacher replies, and other updates.
-- Saving each child's learning and communication preferences for teachers to reference.
+- Receiving in-app notifications for assessments, final grades, materials, teacher replies, assistant PIA updates, and other updates.
+- Viewing assistant-created PIA objectives and ranked progress comments from inside `Progresi -> PIA`.
+- Saving each child's communication and support profile, including up to 3 key classroom preferences plus custom notes for teachers and assistant teachers.
 - Saving parent email-notification preferences; delivery will be implemented later.
 - Live message, assessment, material, and notification updates without refreshing the page.
 
 ### For School Administrators
 
 - School-scoped administrator login.
+- Persisted school profile editing for the shared school name and address stored in Supabase.
 - Student creation, editing, class transfer, activation, and deactivation.
-- Teacher and parent invitations through a protected Edge Function.
-- Invite acceptance and password setup after the user opens the email link.
+- Teacher, assistant-teacher, and parent account creation through a protected Edge Function.
+- Generated temporary passwords are returned only to the authenticated admin flow and are intended to be read from the browser console for now.
 - Class creation and management.
 - Academic period creation, activation, and closure with one active period per school.
-- Teacher-to-subject, teacher-to-class, teacher-to-student, and parent-to-student assignments.
+- Mobile-responsive administrator workspace that preserves the desktop layout patterns and navigation.
+- Class plus subject to teacher assignments, so students inherit the correct teachers automatically from their class membership.
+- Lower-primary `Mësimdhënës klasor` assignment support for classes 1-5, with a school-level subject bundle that expands into real subject-teacher assignments.
+- Legacy teacher-to-student links remain readable for compatibility, while assistant-to-student and parent-to-student assignments stay manual.
 - School subject creation, activation, deactivation, and account deactivation.
 
 ## Technologies
@@ -74,7 +82,9 @@ SUPABASE_PUBLISHABLE_KEY=publishable-key
 PORT=8080
 ```
 
-`OPENAI_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` must be stored only on the server or in Supabase Secrets—never in browser JavaScript.
+`OPENROUTER_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` must be stored only on the server or in Supabase Secrets, never in browser JavaScript.
+
+The teacher support function now uses OpenRouter's OpenAI-compatible API with the fixed free router model `openrouter/free`, so it cannot accidentally route to a paid model.
 
 ## Demo Accounts
 
@@ -97,15 +107,61 @@ npm run db:push:dry
 npm run db:push
 npm run functions:deploy:admin
 npm run functions:deploy:retention
+npm run functions:deploy:email
 ```
+
+Deploy the AI support function and set its secrets explicitly in Supabase:
+
+```powershell
+supabase secrets set OPENROUTER_API_KEY=your-openrouter-api-key
+npm run functions:deploy
+```
+
+This is the correct architecture: the OpenRouter key lives only in Supabase server-side secrets and never in browser code.
 
 The schema, migrations, RLS policies, and test data are located in `supabase/`.
 
-The `admin-users` Edge Function requires Supabase's built-in `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` secrets. Set `ADMIN_INVITE_REDIRECT_URL` as a Supabase Function secret to the deployed frontend URL. Email invitations also require the Supabase Auth Site URL and SMTP settings to be configured for the environment.
+The `admin-users` Edge Function requires Supabase's built-in `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` secrets. It creates teacher, assistant-teacher, and parent accounts and returns a generated temporary password to the authenticated administrator flow.
 
 Classroom files use the private `class-materials` Storage bucket. Images are resized to a maximum dimension of 1920 pixels and converted to WebP when that reduces their size. PDFs remain unchanged. Stored files are limited to 10 MB each; source images may be up to 25 MB before compression.
 
 Teachers can retain materials for 90 or 120 days. Permanent retention is intentionally unavailable. The `material-retention` Edge Function runs daily through Supabase Cron, creates an in-app warning seven days before expiry, removes expired Storage objects, and then deletes their metadata. Its generated `MATERIAL_RETENTION_CRON_SECRET` is stored in Supabase Function Secrets and Vault, not in this repository.
+
+## Email Delivery
+
+The app queues notification emails in `public.email_deliveries` when a user has opted into the relevant email preference. Invite-email delivery for newly created teacher, assistant-teacher, and parent accounts is deferred for a later email-system pass.
+
+Required Supabase Function secrets:
+
+```env
+RESEND_API_KEY=re_your-resend-api-key
+EMAIL_DISPATCH_SECRET=change-this-long-random-secret
+EMAIL_FROM="Vleresimi i Nxenesit <no-reply@your-verified-domain.example>"
+RESEND_FROM_EMAIL=
+EMAIL_FROM_NAME=Vleresimi i Nxenesit
+EMAIL_REPLY_TO=
+EMAIL_APP_URL=https://vleresiminxenesit.vercel.app
+EMAIL_TEST_RECIPIENT=
+EMAIL_DISPATCH_LIMIT=25
+EMAIL_MAX_ATTEMPTS=3
+```
+
+`EMAIL_DISPATCH_SECRET` is only the private trigger secret for the `email-dispatch` Edge Function. It is not the Resend API key. The Resend API key must be stored separately as `RESEND_API_KEY`.
+
+Set either `EMAIL_FROM` as a full sender string or `RESEND_FROM_EMAIL` plus optional `EMAIL_FROM_NAME`. The dispatcher now requires a configured sender instead of silently falling back to an old default.
+
+For free testing, set `EMAIL_TEST_RECIPIENT` to the email address allowed by your Resend account. This redirects all outgoing app emails to that test inbox while preserving the real recipient in `email_deliveries`.
+
+For a school pilot, verify a real domain or subdomain in Resend, update `EMAIL_FROM` to something like `Mesim i Qarte <no-reply@mail.example.org>`, and configure SPF, DKIM, and DMARC records. Upgrading from Resend's free tier to a paid plan should not require app code changes; keep the same function and update the plan/key/domain settings as needed.
+
+Local/manual dispatch:
+
+```powershell
+npm run functions:serve:email
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:54321/functions/v1/email-dispatch?dry_run=true" -Headers @{"x-email-secret"="$env:EMAIL_DISPATCH_SECRET"}
+```
+
+Remove `?dry_run=true` only when you intentionally want to send queued emails.
 
 ## Security
 
@@ -114,13 +170,16 @@ Teachers can retain materials for 90 or 120 days. Permanent retention is intenti
 - Parent-teacher conversations are limited to teachers assigned to the selected child and are stored as shared threads with participant-specific read and archive state.
 - Daily mood updates notify every teacher assigned to the child and remain available in the child's mood history.
 - A teacher can read and assess only their assigned students and subjects.
+- Assistant teachers are stored as teacher profiles with an `is_assistant_teacher` flag, sign in through the teacher login, and are intentionally excluded from teacher-only grading and AI-assistant actions.
+- Staff mood logs are separated from parent daily mood submissions, so school observations do not overwrite the parent's morning update.
 - Teachers can add or change assessments only in the active period matching the student's class school year.
+- Subject-specific class assignments prevent more than one main teacher from being assigned to the same class and subject at the same time.
 - Final grades may be published before every chapter is assessed, but the teacher sees a warning and must type the selected student's full name. The database validates this confirmation.
 - Teacher inbox replies, read status, deletion, and notification preferences are persisted in Supabase.
 - Realtime subscriptions listen only to RLS-protected `user_notifications` changes and are removed on logout.
 - Material recipients are snapshotted at publication, and private files are readable only through authorized short-lived links.
 - An administrator can manage only profiles, students, classes, subjects, and assignments belonging to their own school.
-- Auth invitations use the service role only inside the `admin-users` Edge Function; the service-role key is never sent to the browser.
+- Account creation uses the service role only inside the `admin-users` Edge Function; the service-role key never reaches the browser, and the generated temporary password is returned only to the authenticated administrator flow.
 - Access-denial cases between users must also be tested before the pilot.
 
 ## Project Structure
@@ -144,30 +203,24 @@ Teachers can retain materials for 90 or 120 days. Permanent retention is intenti
 
 ## Status
 
-The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow and the main teacher and parent workflows are database-backed, including assessments, materials, mood history, notifications, shared inbox conversations, and saved email preferences. Production email delivery, complete adversarial RLS testing, a refreshed fictional test dataset, and a review of children's data privacy are still required before a pilot.
+The project is a functional prototype, but it is not yet ready for real school data. The administrator workflow and the main teacher and parent workflows are database-backed, including persisted school data, responsive mobile workspaces, assessments, materials, mood history, staff mood observations, notifications, shared inbox conversations, saved email preferences, and the teacher AI support panel. Assistant teachers now have protected account creation, student assignment, teacher-login routing, a dedicated workspace for assigned children, and a separate PIA workflow with parent-visible progress updates. Main-teacher access is now driven by class plus subject assignments instead of manual student mapping for the normal flow, including lower-primary classroom-teacher expansion for classes 1-5. The AI support function now runs through OpenRouter server-side using the fixed free `openrouter/free` model instead of Gemini. Production email delivery, complete adversarial RLS testing, a refreshed fictional test dataset, and a review of children's data privacy are still required before a pilot.
 
 ## Remaining Implementation Work
 
 ### Email delivery
 
-- Configure production SMTP for Supabase Auth emails such as account invites, password setup, and password recovery. Supabase's built-in sender is suitable only for demos and has strict delivery/rate limits.
-- Choose a transactional email provider for app notifications. Resend, Postmark, SendGrid, Brevo, or AWS SES would work; Resend is a practical default for a small pilot because it has a useful free tier and simple developer setup.
+- Configure production SMTP for Supabase Auth emails such as password recovery. Supabase's built-in sender is suitable only for demos and has strict delivery/rate limits.
 - Verify a real sending domain and sender address, for example `no-reply@mail.example.org` or `notifications@mail.example.org`. Avoid personal Gmail-style senders for production school communication.
 - Configure DNS records for SPF, DKIM, and DMARC to improve deliverability and reduce spam filtering.
-- Add an email delivery Edge Function or background job for saved preferences:
-  - teacher emails for new parent messages,
-  - teacher daily digests,
-  - parent emails for new materials,
-  - parent emails for assessments and final grades.
-- Add delivery logging and retry handling, for example an `email_deliveries` table with recipient, template, notification id, status, provider response, and timestamps.
+- Schedule or manually trigger the `email-dispatch` function in production.
+- Add teacher daily digest generation later, alongside the broader email-system pass.
 - Create Albanian transactional templates for invites, material publication, assessment/final-grade publication, new messages, and daily digests.
+- Expand the PIA workflow only after this assistant-teacher baseline is manually validated in the browser.
 
 ### AI support
 
-- Connect the teacher `Mbështetja AI` screen to the existing `support` Supabase Edge Function.
-- Add the chat/input UI, quick classroom prompts, loading states, error states, and output rendering for observation, actions, observation cue, and escalation guidance.
-- Add visible guardrails telling teachers not to enter personally identifying student data into the assistant.
-- Verify the `OPENAI_API_KEY`, `OPENAI_MODEL`, `AI_PROVIDER`, and `SUPABASE_SERVICE_ROLE_KEY` secrets in Supabase before enabling the feature outside local testing.
+- Review the Albanian wording with real teachers before a pilot and expand the prompt library for more classroom scenarios.
+- Recheck the urgent-safety keyword list and escalation guidance with school protocol owners before a pilot.
 
 ### Security and privacy
 
@@ -184,7 +237,7 @@ The project is a functional prototype, but it is not yet ready for real school d
 
 - Replace the current small demo seed with a larger coherent fictional dataset before full manual testing.
 - Add mobile and desktop end-to-end tests for the main flows: login, admin assignment, parent mood, parent messages, teacher replies, assessments, final grades, material publish/delete/download, notifications, and logout.
-- Add a focused QA pass for responsive teacher and parent navigation, since mobile-specific regressions have appeared during development.
+- Add a focused QA pass for responsive administrator, teacher, parent, and assistant navigation, since mobile-specific regressions have appeared during development.
 
 ### Deployment readiness
 
@@ -194,6 +247,18 @@ The project is a functional prototype, but it is not yet ready for real school d
 - Add basic operational monitoring for Edge Function failures, email delivery failures, and unexpected auth/database errors.
 
 ## Changelog
+
+### 2026-09-01
+
+- Moved parent PIA access under `Progresi` to reduce navigation crowding while preserving the existing parent visual language.
+- Fixed the parent daily-mood flow so the current day is updated in place, the submit action clearly switches to a resend state, and history excludes duplicate same-day entries.
+- Expanded parent support-profile persistence with capped classroom preferences, richer communication/accommodation notes, and database-backed storage in `student_support_profiles`.
+- Updated parent progress subject loading to follow the admin-managed class plus subject teacher assignments instead of only subjects that already have grades.
+
+### 2026-09-02
+
+- Replaced the Gemini-backed teacher support provider with OpenRouter's OpenAI-compatible API using the fixed free `openrouter/free` model through the existing Supabase Edge Function.
+- Added school-level lower-primary subject bundle support so assigning `Mësimdhënës klasor` to classes 1-5 expands into real class-subject teacher assignments for grading and parent progress views.
 
 ### 2026-08-14
 

@@ -4,7 +4,7 @@ type InviteRequest = {
   email?: string;
   firstName?: string;
   lastName?: string;
-  role?: "teacher" | "parent";
+  role?: "teacher" | "assistant_teacher" | "parent";
 };
 
 const corsHeaders = {
@@ -28,6 +28,18 @@ function env(name: string): string {
 
 function cleanName(value: unknown): string {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 80) : "";
+}
+
+function randomPassword() {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const digits = "23456789";
+  const symbols = "!@#$%";
+  const all = upper + lower + digits + symbols;
+  const picks = [upper, lower, digits, symbols, all, all, all, all, all, all, all, all, all, all];
+  const bytes = new Uint8Array(picks.length);
+  crypto.getRandomValues(bytes);
+  return picks.map((characters, index) => characters[bytes[index] % characters.length]).join("");
 }
 
 Deno.serve(async (request: Request) => {
@@ -65,10 +77,12 @@ Deno.serve(async (request: Request) => {
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const firstName = cleanName(body.firstName);
     const lastName = cleanName(body.lastName);
-    const role = body.role;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !firstName || !lastName || !["teacher", "parent"].includes(role ?? "")) {
+    const role = body.role === "teacher" || body.role === "assistant_teacher" || body.role === "parent" ? body.role : null;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !firstName || !lastName || !role) {
       return json({ error: "INVALID_INPUT" }, 400);
     }
+    const invitedRole = role === "assistant_teacher" ? "teacher" : role;
+    const isAssistantTeacher = role === "assistant_teacher";
 
     const { data: existingProfile, error: existingProfileError } = await userClient
       .from("profiles")
@@ -78,30 +92,41 @@ Deno.serve(async (request: Request) => {
     if (existingProfileError) return json({ error: "PROFILE_LOOKUP_FAILED" }, 500);
     if (existingProfile) return json({ error: "ACCOUNT_EXISTS" }, 409);
 
-    const redirectTo = Deno.env.get("ADMIN_INVITE_REDIRECT_URL") || undefined;
-    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: { first_name: firstName, last_name: lastName, role, school_id: adminProfile.school_id },
+    const temporaryPassword = randomPassword();
+    const { data: createData, error: createError } = await adminClient.auth.admin.createUser({
+      email,
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: {
+        first_name: firstName,
+        last_name: lastName,
+        role: invitedRole,
+        school_id: adminProfile.school_id,
+        is_assistant_teacher: isAssistantTeacher,
+      },
     });
-    if (inviteError || !inviteData.user) {
-      return json({ error: inviteError?.message || "INVITE_FAILED" }, inviteError?.status || 400);
+    if (createError || !createData.user) {
+      return json({ error: createError?.message || "ACCOUNT_CREATE_FAILED" }, createError?.status || 400);
     }
 
     const { error: insertError } = await userClient.rpc("admin_register_invited_profile", {
-      invited_user_id: inviteData.user.id,
+      invited_user_id: createData.user.id,
       invited_email: email,
       invited_first_name: firstName,
       invited_last_name: lastName,
-      invited_role: role,
+      invited_role: invitedRole,
+      invited_is_assistant_teacher: isAssistantTeacher,
     });
     if (insertError) {
-      await adminClient.auth.admin.deleteUser(inviteData.user.id);
+      await adminClient.auth.admin.deleteUser(createData.user.id);
       return json({ error: "PROFILE_CREATE_FAILED" }, 500);
     }
 
     return json({
-      user: { id: inviteData.user.id, email, firstName, lastName, role },
-      invitationSent: true,
+      user: { id: createData.user.id, email, firstName, lastName, role },
+      temporaryPassword,
+      invitationSent: false,
+      accountEmailSent: false,
     }, 201);
   } catch (error) {
     console.error("admin-users", error);
