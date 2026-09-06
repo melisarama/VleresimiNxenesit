@@ -395,6 +395,8 @@ async function loadAssistantTeacherData(user, shouldStartRealtime = true) {
     assistantTeacherName: `${results.profile.first_name} ${results.profile.last_name}`,
     assistantTeacherEmail: user.email || '',
     assistantTeacherId: user.id,
+    schoolId: results.profile.school_id,
+    subjects: results.schoolSubjects || [],
     students,
     moods: todayMoods,
     moodHistories,
