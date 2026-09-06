@@ -177,13 +177,14 @@ export async function fetchAssistantTeacherDashboardData(userId) {
 
   const studentIds = (assignmentResult.data || []).map(item => item.student_id);
   if (!studentIds.length) {
-    const [threadResult, threadMessageResult, notificationResult, preferenceResult] = await Promise.all([
+    const [threadResult, threadMessageResult, notificationResult, preferenceResult, schoolSubjectResult] = await Promise.all([
       supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,assistant_teacher_id,subject_id,title,parent_archived_at,teacher_archived_at,assistant_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name),teacher_profiles:profiles!communication_threads_teacher_id_fkey(first_name,last_name),assistant_profiles:profiles!communication_threads_assistant_teacher_id_fkey(first_name,last_name)').eq('assistant_teacher_id', userId).order('updated_at', { ascending: false }),
       supabaseClient.from('communication_messages').select('id,thread_id,sender_id,body,read_at,created_at').order('created_at'),
       supabaseClient.from('user_notifications').select('*').eq('recipient_id', userId).order('created_at', { ascending: false }),
-      supabaseClient.from('teacher_notification_preferences').select('*').eq('profile_id', userId).maybeSingle()
+      supabaseClient.from('teacher_notification_preferences').select('*').eq('profile_id', userId).maybeSingle(),
+      supabaseClient.from('school_subjects').select('subject_id,subjects(id,name)').eq('school_id', profileResult.data.school_id).eq('active', true)
     ]);
-    [threadResult, threadMessageResult, notificationResult, preferenceResult].forEach(result => {
+    [threadResult, threadMessageResult, notificationResult, preferenceResult, schoolSubjectResult].forEach(result => {
       if (result.error) throw result.error;
     });
 
@@ -199,11 +200,12 @@ export async function fetchAssistantTeacherDashboardData(userId) {
       notifications: notificationResult.data || [],
       preferences: preferenceResult.data || null,
       staffMoodLogs: [],
+      schoolSubjects: schoolSubjectResult.data || [],
       messageRecipients: {}
     };
   }
 
-  const [studentResult, supportResult, moodResult, staffMoodResult, piaObjectiveResult, piaUpdateResult, threadResult, threadMessageResult, notificationResult, preferenceResult] = await Promise.all([
+  const [studentResult, supportResult, moodResult, staffMoodResult, piaObjectiveResult, piaUpdateResult, threadResult, threadMessageResult, notificationResult, preferenceResult, schoolSubjectResult] = await Promise.all([
     supabaseClient.from('students').select('*,classes(school_year)').in('id', studentIds).order('last_name').order('first_name'),
     supabaseClient.from('student_support_profiles').select('*').in('student_id', studentIds),
     supabaseClient.from('daily_moods').select('student_id,mood,parent_comment,reported_on').in('student_id', studentIds).order('reported_on', { ascending: false }),
@@ -213,10 +215,11 @@ export async function fetchAssistantTeacherDashboardData(userId) {
     supabaseClient.from('communication_threads').select('id,student_id,parent_id,teacher_id,assistant_teacher_id,subject_id,title,parent_archived_at,teacher_archived_at,assistant_archived_at,created_at,updated_at,students(first_name,last_name),subjects(name),parent_profiles:profiles!communication_threads_parent_id_fkey(first_name,last_name),teacher_profiles:profiles!communication_threads_teacher_id_fkey(first_name,last_name),assistant_profiles:profiles!communication_threads_assistant_teacher_id_fkey(first_name,last_name)').eq('assistant_teacher_id', userId).order('updated_at', { ascending: false }),
     supabaseClient.from('communication_messages').select('id,thread_id,sender_id,body,read_at,created_at').order('created_at'),
     supabaseClient.from('user_notifications').select('*').eq('recipient_id', userId).order('created_at', { ascending: false }),
-    supabaseClient.from('teacher_notification_preferences').select('*').eq('profile_id', userId).maybeSingle()
+    supabaseClient.from('teacher_notification_preferences').select('*').eq('profile_id', userId).maybeSingle(),
+    supabaseClient.from('school_subjects').select('subject_id,subjects(id,name)').eq('school_id', profileResult.data.school_id).eq('active', true)
   ]);
 
-  [studentResult, supportResult, moodResult, staffMoodResult, piaObjectiveResult, piaUpdateResult, threadResult, threadMessageResult, notificationResult, preferenceResult].forEach(result => {
+  [studentResult, supportResult, moodResult, staffMoodResult, piaObjectiveResult, piaUpdateResult, threadResult, threadMessageResult, notificationResult, preferenceResult, schoolSubjectResult].forEach(result => {
     if (result.error) throw result.error;
   });
 
@@ -257,6 +260,7 @@ export async function fetchAssistantTeacherDashboardData(userId) {
     threadMessages: threadMessageResult.data || [],
     notifications: notificationResult.data || [],
     preferences: preferenceResult.data || null,
+    schoolSubjects: schoolSubjectResult.data || [],
     messageRecipients
   };
 }

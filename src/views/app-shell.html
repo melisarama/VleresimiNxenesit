@@ -452,6 +452,7 @@
       <div class="teacher-prototype-brand"><span aria-hidden="true">MQ</span><div><strong>Mësim i Qartë</strong><small>Paneli i asistentit</small></div></div>
       <nav class="teacher-prototype-nav" aria-label="Navigimi i asistentit">
         <button class="active" type="button" data-assistant-view="students"><span class="tp-icon" aria-hidden="true">◍</span><span>Nxënësit</span></button>
+        <button type="button" data-assistant-view="materials"><span class="tp-icon" aria-hidden="true">▤</span><span>Materialet</span></button>
         <button type="button" data-assistant-view="pia"><span class="tp-icon" aria-hidden="true">◎</span><span>PIA</span></button>
       </nav>
       <div class="teacher-account-summary"><span class="teacher-account-avatar">AT</span><div><strong data-assistant-name>Asistent</strong><small>Mbështetje në klasë</small></div></div>
@@ -485,6 +486,24 @@
           <div id="assistantFolderDetail"></div>
         </section>
 
+        <section class="teacher-prototype-view" data-assistant-panel="materials">
+          <div class="teacher-section-heading"><div><h2>Materialet mësimore</h2><p>Publikoni materiale për nxënësit që ju janë caktuar.</p></div><button class="teacher-primary-button" id="assistantNewMaterial" type="button">＋ Publiko material</button></div>
+          <form class="teacher-composer hidden" id="assistantMaterialComposer">
+            <div class="teacher-form-grid"><label>Lënda<select id="assistantMaterialSubject" required></select></label><label>Marrësit<select id="assistantMaterialAudience"><option value="class">E gjithë klasa</option><option value="subject">Të gjithë nxënësit e lëndës</option><option value="selected">Nxënës të zgjedhur</option></select></label></div>
+            <label id="assistantMaterialClassField">Klasa<select id="assistantMaterialClass" required></select></label>
+            <div class="teacher-selected-students hidden" id="assistantMaterialStudents"></div>
+            <label>Titulli<input id="assistantMaterialTitle" type="text" maxlength="160" required placeholder="P.sh. Ushtrime vizuale për lexim"></label>
+            <label>Përshkrim i shkurtër<textarea id="assistantMaterialDescription" rows="3" maxlength="1200" placeholder="Çfarë duhet të ushtrohet dhe si e ndihmon nxënësin?"></textarea></label>
+            <div class="teacher-attachment-row"><label class="teacher-attachment-button">▧ Shto foto ose PDF<input id="assistantMaterialFiles" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden></label><small>Opsionale · fotografitë kompresohen automatikisht · maksimumi 10 MB për skedar</small></div>
+            <div class="teacher-file-selection" id="assistantMaterialFileSelection"></div>
+            <div class="teacher-form-grid"><label>Ruajtja e materialit<select id="assistantMaterialRetention"><option value="120">Fshi automatikisht pas 120 ditësh</option><option value="90">Fshi automatikisht pas 90 ditësh</option></select></label><label class="teacher-check-row teacher-notify-check"><input id="assistantMaterialNotify" type="checkbox" checked> Njofto prindërit brenda platformës</label></div>
+            <p class="teacher-material-status" id="assistantMaterialStatus" aria-live="polite"></p>
+            <div class="teacher-form-actions"><button type="button" id="assistantCancelMaterial">Anulo</button><button class="teacher-primary-button" type="submit">Publiko</button></div>
+          </form>
+          <div class="teacher-material-warnings" id="assistantMaterialWarnings"></div>
+          <div class="teacher-material-list" id="assistantMaterialList"></div>
+        </section>
+
         <section class="teacher-prototype-view" data-assistant-panel="pia">
           <div class="teacher-section-heading"><div><p>Plani individual</p><h2>PIA</h2></div></div>
           <div id="assistantPiaContent"></div>
@@ -494,6 +513,7 @@
 
     <nav class="teacher-mobile-nav" aria-label="Navigimi i asistentit në celular">
       <button class="active" type="button" data-assistant-view="students"><span>◍</span><small>Nxënësit</small></button>
+      <button type="button" data-assistant-view="materials"><span>▤</span><small>Materialet</small></button>
       <button type="button" data-assistant-view="pia"><span>◎</span><small>PIA</small></button>
     </nav>
     <dialog class="teacher-logout-dialog" id="assistantTeacherLogoutDialog" aria-labelledby="assistantTeacherLogoutTitle">
@@ -502,6 +522,14 @@
         <h2 id="assistantTeacherLogoutTitle">Dil nga llogaria?</h2>
         <p>Jeni të sigurt që dëshironi të përfundoni sesionin tuaj?</p>
         <div><button type="submit" value="cancel">Jo, qëndro</button><button class="teacher-confirm-logout" type="submit" value="confirm">Po, dil</button></div>
+      </form>
+    </dialog>
+    <dialog class="teacher-delete-dialog" id="assistantDeleteMaterialDialog" aria-labelledby="assistantDeleteMaterialTitle">
+      <form method="dialog">
+        <span class="teacher-delete-symbol" aria-hidden="true">×</span>
+        <h2 id="assistantDeleteMaterialTitle">Fshi materialin?</h2>
+        <p id="assistantDeleteMaterialMessage">Ky material do të hiqet për ju dhe prindërit.</p>
+        <div><button type="submit" value="cancel">Anulo</button><button class="teacher-confirm-delete" type="submit" value="confirm">Fshi</button></div>
       </form>
     </dialog>
   </section>

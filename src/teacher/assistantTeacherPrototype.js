@@ -1,4 +1,12 @@
 import {
+  createMaterialDownloadUrl,
+  deleteTeacherMaterial,
+  fetchTeacherMaterials,
+  markRetentionWarningRead,
+  prepareMaterialFiles,
+  publishTeacherMaterial
+} from '../services/teacherMaterialService.js';
+import {
   archiveAssistantThread,
   deleteAssistantNotification,
   markAssistantNotificationRead,
@@ -18,6 +26,7 @@ const titles = {
   students: ['Femijet e caktuar', 'Nxenesit'],
   'student-folder': ['Dosja e nxenesit', 'Dosja'],
   'folder-detail': ['Historiku dhe mbeshtetja', 'Detajet'],
+  materials: ['Permbajtja mesimore', 'Materialet'],
   pia: ['Plani individual', 'PIA'],
   messages: ['Komunikimi me familjen dhe stafin', 'Mesazhet'],
   settings: ['Llogaria dhe preferencat', 'Cilesimet']
@@ -241,6 +250,9 @@ export function initializeAssistantTeacherPrototype({ onLogout } = {}) {
   let messageRecipients = {};
   let messageStudentId = '';
   let notificationPreferences = null;
+  let materialContext = { teacherId: null, schoolId: null, subjects: [], classAssignments: [], studentAssignments: [] };
+  let assistantMaterials = [];
+  let materialWarnings = [];
 
   const panels = [...root.querySelectorAll('[data-assistant-panel]')];
   const navButtons = [...root.querySelectorAll('[data-assistant-view]')];
@@ -267,6 +279,10 @@ export function initializeAssistantTeacherPrototype({ onLogout } = {}) {
       title.textContent = titles[name][1];
     }
     if (name === 'pia') renderPiaPanel();
+    if (name === 'materials') {
+      renderMaterialFormOptions();
+      loadMaterialLibrary();
+    }
     if (name === 'messages') renderMessages();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -895,9 +911,276 @@ export function initializeAssistantTeacherPrototype({ onLogout } = {}) {
     }
   }
 
+  function materialDate(value, includeTime = false) {
+    return formatSqDate(value, { includeTime });
+  }
+
+  function bytesLabel(bytes = 0) {
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
+  }
+
+  function studentsForMaterialSubject(subjectId) {
+    const classIds = new Set(
+      materialContext.classAssignments
+        .filter(assignment => assignment.subject_id === subjectId)
+        .map(assignment => assignment.class_id)
+    );
+    const directIds = new Set(materialContext.studentAssignments || []);
+    return students.filter(student => directIds.has(student.id) || (student.class_id && classIds.has(student.class_id)));
+  }
+
+  function renderMaterialFormOptions() {
+    const subjectSelect = document.getElementById('assistantMaterialSubject');
+    const classSelect = document.getElementById('assistantMaterialClass');
+    const studentOptions = document.getElementById('assistantMaterialStudents');
+    if (!subjectSelect || !classSelect || !studentOptions) return;
+
+    const previousSubjectId = subjectSelect.value;
+    subjectSelect.innerHTML = materialContext.subjects.length
+      ? materialContext.subjects.map(subject => `<option value="${escapeHtml(subject.id)}">${escapeHtml(subject.name)}</option>`).join('')
+      : '<option value="">Pa lende aktive</option>';
+    const selectedSubjectId = materialContext.subjects.some(subject => subject.id === previousSubjectId)
+      ? previousSubjectId
+      : materialContext.subjects[0]?.id || '';
+    subjectSelect.value = selectedSubjectId;
+
+    const allowedStudents = studentsForMaterialSubject(selectedSubjectId);
+    const classes = [...new Map(
+      materialContext.classAssignments
+        .filter(assignment => assignment.subject_id === selectedSubjectId)
+        .map(assignment => [assignment.class_id, {
+          id: assignment.class_id,
+          name: assignment.classes?.name || allowedStudents.find(student => student.class_id === assignment.class_id)?.className || 'Pa klase'
+        }])
+    ).values()];
+
+    const previousClassId = classSelect.value;
+    classSelect.innerHTML = classes.length
+      ? classes.map(item => `<option value="${escapeHtml(item.id)}">Klasa ${escapeHtml(item.name)}</option>`).join('')
+      : '<option value="">Pa klase</option>';
+    classSelect.value = classes.some(item => item.id === previousClassId) ? previousClassId : (classes[0]?.id || '');
+    studentOptions.innerHTML = allowedStudents.map(student => `<label><input type="checkbox" value="${escapeHtml(student.id)}"> ${escapeHtml(student.name)} <small>Klasa ${escapeHtml(student.className || 'Pa klase')}</small></label>`).join('');
+    updateMaterialAudience();
+  }
+
+  function updateMaterialAudience() {
+    const audience = document.getElementById('assistantMaterialAudience')?.value || 'class';
+    document.getElementById('assistantMaterialStudents')?.classList.toggle('hidden', audience !== 'selected');
+    document.getElementById('assistantMaterialClassField')?.classList.toggle('hidden', audience !== 'class');
+  }
+
+  function renderSelectedMaterialFiles() {
+    const files = document.getElementById('assistantMaterialFiles');
+    const box = document.getElementById('assistantMaterialFileSelection');
+    if (!files || !box) return;
+    box.innerHTML = [...files.files].map(file => `<span><strong>${escapeHtml(file.name)}</strong><small>${bytesLabel(file.size)}</small></span>`).join('');
+  }
+
+  function renderMaterialWarnings() {
+    const box = document.getElementById('assistantMaterialWarnings');
+    if (!box) return;
+    box.innerHTML = '';
+    materialWarnings.forEach(warning => {
+      const material = assistantMaterials.find(item => item.id === warning.material_id);
+      if (!material) return;
+      const article = document.createElement('article');
+      article.innerHTML = `<span>!</span><div><strong>“${escapeHtml(material.title)}” skadon më ${escapeHtml(materialDate(warning.expires_at))}</strong><p>Shkarkojeni ose ndryshoni ruajtjen para fshirjes automatike.</p></div><button type="button">Në rregull</button>`;
+      article.querySelector('button').addEventListener('click', async () => {
+        await markRetentionWarningRead(warning.id);
+        materialWarnings = materialWarnings.filter(item => item.id !== warning.id);
+        renderMaterialWarnings();
+      });
+      box.appendChild(article);
+    });
+  }
+
+  function confirmMaterialDelete(material) {
+    const dialog = document.getElementById('assistantDeleteMaterialDialog');
+    const message = document.getElementById('assistantDeleteMaterialMessage');
+    if (!dialog || !message) return Promise.resolve(window.confirm(`Fshi materialin “${material.title}”?`));
+    message.textContent = `Jeni të sigurt që dëshironi të fshini “${material.title}”? Ky material nuk do të jetë më i disponueshëm për prindërit.`;
+    dialog.returnValue = 'cancel';
+    return new Promise(resolve => {
+      if (typeof dialog.showModal === 'function') {
+        dialog.addEventListener('close', () => resolve(dialog.returnValue === 'confirm'), { once: true });
+        dialog.showModal();
+        return;
+      }
+      dialog.classList.add('fallback-open');
+      const finish = confirmed => {
+        dialog.classList.remove('fallback-open');
+        resolve(confirmed);
+      };
+      dialog.querySelector('[value="cancel"]').addEventListener('click', () => finish(false), { once: true });
+      dialog.querySelector('[value="confirm"]').addEventListener('click', () => finish(true), { once: true });
+    });
+  }
+
+  async function handleMaterialDelete(button) {
+    const status = document.getElementById('assistantMaterialStatus');
+    const material = assistantMaterials.find(item => item.id === button.dataset.materialId);
+    if (!material) {
+      if (status) status.textContent = 'Materiali nuk u gjet. Rifreskoni listën dhe provoni përsëri.';
+      return;
+    }
+    if (!await confirmMaterialDelete(material)) return;
+    button.disabled = true;
+    if (status) status.textContent = 'Duke fshirë materialin...';
+    try {
+      await deleteTeacherMaterial(material);
+      assistantMaterials = assistantMaterials.filter(item => item.id !== material.id);
+      if (status) status.textContent = 'Materiali u fshi.';
+      renderMaterialLibrary();
+    } catch (error) {
+      button.disabled = false;
+      if (status) status.textContent = error.message || 'Materiali nuk mundi të fshihej.';
+    }
+  }
+
+  function renderMaterialLibrary() {
+    const list = document.getElementById('assistantMaterialList');
+    const status = document.getElementById('assistantMaterialStatus');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!assistantMaterials.length) {
+      list.innerHTML = '<p class="teacher-material-empty">Ende nuk keni publikuar materiale.</p>';
+      return;
+    }
+    assistantMaterials.forEach(material => {
+      const files = material.class_material_files || [];
+      const recipients = material.class_material_recipients || [];
+      const article = document.createElement('article');
+      const fileType = files[0]?.mime_type === 'application/pdf' ? 'PDF' : files.length ? 'IMG' : 'TXT';
+      const audience = material.audience === 'class' && material.classes ? `Klasa ${material.classes.name}` : `${recipients.length} nxënës`;
+      const expiry = material.expires_at ? `Fshihet më ${materialDate(material.expires_at)}` : 'Ruhet pa afat';
+      article.innerHTML = `<div class="teacher-material-file${fileType === 'IMG' ? ' image' : ''}">${fileType}</div><div><span>${escapeHtml(material.subjects?.name || 'Lënda')} · ${escapeHtml(audience)}</span><h3>${escapeHtml(material.title)}</h3><p>${escapeHtml(material.description || 'Pa përshkrim shtesë.')}</p><small>${escapeHtml(materialDate(material.created_at, true))} · ${files.length} skedarë · ${escapeHtml(expiry)}</small><div class="teacher-material-downloads"></div></div><button class="teacher-material-delete" type="button" data-material-id="${escapeHtml(material.id)}" aria-label="Fshi materialin" title="Fshi materialin">×</button>`;
+      const downloads = article.querySelector('.teacher-material-downloads');
+      files.forEach(file => {
+        const downloadButton = document.createElement('button');
+        downloadButton.type = 'button';
+        downloadButton.textContent = `↓ ${file.original_name} · ${bytesLabel(file.byte_size)}`;
+        downloadButton.addEventListener('click', async () => {
+          downloadButton.disabled = true;
+          try {
+            const url = await createMaterialDownloadUrl(file.storage_path);
+            window.open(url, '_blank', 'noopener,noreferrer');
+          } catch (error) {
+            if (status) status.textContent = error.message;
+          } finally {
+            downloadButton.disabled = false;
+          }
+        });
+        downloads.appendChild(downloadButton);
+      });
+      list.appendChild(article);
+    });
+  }
+
+  async function loadMaterialLibrary() {
+    if (!materialContext.teacherId) return;
+    const box = document.getElementById('assistantMaterialList');
+    if (!box) return;
+    box.innerHTML = '<p class="teacher-material-empty">Duke ngarkuar materialet...</p>';
+    try {
+      const data = await fetchTeacherMaterials(materialContext.teacherId);
+      assistantMaterials = data.materials;
+      materialWarnings = data.warnings;
+      renderMaterialWarnings();
+      renderMaterialLibrary();
+    } catch (error) {
+      box.innerHTML = `<p class="teacher-material-empty">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  function resetMaterialComposer() {
+    const composer = document.getElementById('assistantMaterialComposer');
+    const files = document.getElementById('assistantMaterialFiles');
+    const status = document.getElementById('assistantMaterialStatus');
+    composer?.reset();
+    if (files) files.value = '';
+    if (status) status.textContent = '';
+    renderSelectedMaterialFiles();
+    renderMaterialFormOptions();
+  }
+
+  function bindMaterialEvents() {
+    const composer = document.getElementById('assistantMaterialComposer');
+    const files = document.getElementById('assistantMaterialFiles');
+    const list = document.getElementById('assistantMaterialList');
+    const status = document.getElementById('assistantMaterialStatus');
+    if (!composer || !files || !list) return;
+
+    document.getElementById('assistantNewMaterial')?.addEventListener('click', () => {
+      resetMaterialComposer();
+      composer.classList.remove('hidden');
+    });
+    document.getElementById('assistantCancelMaterial')?.addEventListener('click', () => composer.classList.add('hidden'));
+    document.getElementById('assistantMaterialAudience')?.addEventListener('change', updateMaterialAudience);
+    document.getElementById('assistantMaterialSubject')?.addEventListener('change', renderMaterialFormOptions);
+    files.addEventListener('change', renderSelectedMaterialFiles);
+    list.addEventListener('click', async event => {
+      const deleteButton = event.target.closest('.teacher-material-delete');
+      if (!deleteButton || !list.contains(deleteButton)) return;
+      await handleMaterialDelete(deleteButton);
+    });
+    document.getElementById('assistantDeleteMaterialDialog')?.addEventListener('click', event => {
+      if (event.target === event.currentTarget) event.currentTarget.close('cancel');
+    });
+
+    composer.addEventListener('submit', async event => {
+      event.preventDefault();
+      const submit = composer.querySelector('[type="submit"]');
+      const audience = document.getElementById('assistantMaterialAudience').value;
+      const subjectId = document.getElementById('assistantMaterialSubject').value;
+      const classId = document.getElementById('assistantMaterialClass').value;
+      const allowedStudents = studentsForMaterialSubject(subjectId);
+      let recipientIds = [];
+      if (audience === 'class') recipientIds = allowedStudents.filter(student => student.class_id === classId).map(student => student.id);
+      if (audience === 'subject') recipientIds = allowedStudents.map(student => student.id);
+      if (audience === 'selected') recipientIds = [...document.querySelectorAll('#assistantMaterialStudents input:checked')].map(input => input.value);
+      if (!materialContext.teacherId || !materialContext.schoolId) {
+        if (status) status.textContent = 'Sesioni i asistentit nuk është gati. Kyçuni përsëri.';
+        return;
+      }
+      if (!subjectId) {
+        if (status) status.textContent = 'Zgjidhni një lëndë aktive.';
+        return;
+      }
+      if (!recipientIds.length) {
+        if (status) status.textContent = 'Zgjidhni të paktën një nxënës marrës.';
+        return;
+      }
+      submit.disabled = true;
+      try {
+        const preparedFiles = await prepareMaterialFiles([...files.files], message => { if (status) status.textContent = message; });
+        await publishTeacherMaterial({
+          teacherId: materialContext.teacherId,
+          schoolId: materialContext.schoolId,
+          subjectId,
+          classId,
+          audience,
+          title: document.getElementById('assistantMaterialTitle').value.trim(),
+          description: document.getElementById('assistantMaterialDescription').value.trim(),
+          notifyInApp: document.getElementById('assistantMaterialNotify').checked,
+          retentionDays: Number(document.getElementById('assistantMaterialRetention').value) || null,
+          recipientIds,
+          preparedFiles
+        }, message => { if (status) status.textContent = message; });
+        composer.classList.add('hidden');
+        await loadMaterialLibrary();
+      } catch (error) {
+        if (status) status.textContent = error.message;
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
+
   function bindStaticEvents() {
     navButtons.forEach(button => button.addEventListener('click', () => showPanel(button.dataset.assistantView)));
     root.querySelector('[data-open-assistant-messages]')?.addEventListener('click', () => showPanel('messages'));
+    bindMaterialEvents();
 
     document.getElementById('assistantStudentSearch').addEventListener('input', event => renderStudents(event.target.value));
     document.getElementById('assistantFolderBack').addEventListener('click', () => showPanel('students'));
@@ -1016,6 +1299,8 @@ export function initializeAssistantTeacherPrototype({ onLogout } = {}) {
       assistantTeacherName,
       assistantTeacherEmail = '',
       assistantTeacherId = null,
+      schoolId = null,
+      subjects = [],
       students: nextStudents = [],
       moods = {},
       moodHistories: nextMoodHistories = {},
@@ -1057,6 +1342,28 @@ export function initializeAssistantTeacherPrototype({ onLogout } = {}) {
       messageStudentId = students.some(student => student.id === messageStudentId) ? messageStudentId : (selectedStudent?.id || '');
       updateObjectiveId = piaObjectives.some(item => item.id === updateObjectiveId) ? updateObjectiveId : (objectivesForStudent(piaStudentId)[0]?.id || null);
       achievementObjectiveId = piaObjectives.some(item => item.id === achievementObjectiveId) ? achievementObjectiveId : null;
+      const materialSubjects = Array.isArray(subjects) ? subjects.map(subject => subject.subjects || subject).filter(subject => subject?.id) : [];
+      const uniqueClasses = [...new Map(students
+        .filter(student => student.class_id)
+        .map(student => [student.class_id, {
+          id: student.class_id,
+          name: student.className || 'Pa klase',
+          school_year: student.schoolYear || ''
+        }])
+      ).values()];
+      materialContext = {
+        teacherId: assistantId,
+        schoolId: schoolId || materialContext.schoolId,
+        subjects: [...new Map(materialSubjects.map(subject => [subject.id, subject])).values()],
+        classAssignments: uniqueClasses.flatMap(classItem => materialSubjects.map(subject => ({
+          teacher_id: assistantId,
+          class_id: classItem.id,
+          subject_id: subject.id,
+          classes: classItem,
+          subjects: subject
+        }))),
+        studentAssignments: students.map(student => student.id)
+      };
 
       document.getElementById('assistantNotificationEmail').value = preferences?.notification_email || assistantEmail;
       document.getElementById('assistantParentMessageEmails').checked = preferences?.parent_message_emails || false;
@@ -1067,6 +1374,8 @@ export function initializeAssistantTeacherPrototype({ onLogout } = {}) {
       renderPiaPanel();
       renderMessageComposerOptions();
       renderMessages();
+      renderMaterialFormOptions();
+      if (currentPanel === 'materials') loadMaterialLibrary();
 
       const activeMessage = messages.find(message => message.id === activeMessageId);
       if (currentPanel === 'messages' && activeMessage) {

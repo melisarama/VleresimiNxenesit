@@ -16,6 +16,7 @@ A mobile-first application for collaboration between teachers and parents in Kos
 - Period-aware assessments tied to the student's class school year.
 - Final-grade publication with a warning and typed student-name confirmation.
 - Private material publishing by class, subject, or selected students.
+- Assistant teachers can publish private materials for the students assigned to them.
 - Automatic image compression and 90/120-day material retention.
 - Learning preferences and support profile.
 - Continuous chapter assessment and final grades by academic period.
@@ -177,7 +178,7 @@ Remove `?dry_run=true` only when you intentionally want to send queued emails.
 - Final grades may be published before every chapter is assessed, but the teacher sees a warning and must type the selected student's full name. The database validates this confirmation.
 - Teacher inbox replies, read status, deletion, and notification preferences are persisted in Supabase.
 - Realtime subscriptions listen only to RLS-protected `user_notifications` changes and are removed on logout.
-- Material recipients are snapshotted at publication, and private files are readable only through authorized short-lived links.
+- Material recipients are snapshotted at publication, and private files are readable only through authorized short-lived links. Assistant-teacher material publishing is limited to students assigned to that assistant.
 - An administrator can manage only profiles, students, classes, subjects, and assignments belonging to their own school.
 - Account creation uses the service role only inside the `admin-users` Edge Function; the service-role key never reaches the browser, and the generated temporary password is returned only to the authenticated administrator flow.
 - Access-denial cases between users must also be tested before the pilot.
@@ -247,6 +248,11 @@ The project is a functional prototype, but it is not yet ready for real school d
 - Add basic operational monitoring for Edge Function failures, email delivery failures, and unexpected auth/database errors.
 
 ## Changelog
+
+### 2026-09-06
+
+- Added the teacher-style `Materialet` workspace to assistant-teacher accounts, including publishing, file attachment, retention, download, delete, and parent notification support.
+- Added a Supabase migration that lets assistant teachers publish materials only for students assigned to them.
 
 ### 2026-09-01
 
