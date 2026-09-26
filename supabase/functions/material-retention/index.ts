@@ -19,6 +19,39 @@ function errorMessage(error: unknown): string {
   return "RETENTION_FAILED";
 }
 
+async function deleteStoredMaterialPaths(admin: ReturnType<typeof createClient>, paths: string[]) {
+  const storageApiBaseUrl = Deno.env.get("STORAGE_API_BASE_URL")?.replace(/\/+$/, "");
+  const storageServiceSecret = Deno.env.get("STORAGE_SERVICE_SECRET");
+
+  if (storageApiBaseUrl && storageServiceSecret) {
+    const body = new URLSearchParams();
+    for (const path of paths) body.append("paths[]", path);
+
+    const response = await fetch(`${storageApiBaseUrl}/delete.php`, {
+      method: "POST",
+      headers: {
+        "x-storage-service-secret": storageServiceSecret,
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      let reason = "REMOTE_STORAGE_DELETE_FAILED";
+      try {
+        const payload = await response.json();
+        if (payload?.error) reason = payload.error;
+      } catch {
+        reason = await response.text().catch(() => reason);
+      }
+      throw new Error(reason);
+    }
+    return;
+  }
+
+  const { error: storageError } = await admin.storage.from("class-materials").remove(paths);
+  if (storageError) throw storageError;
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
 
@@ -72,8 +105,7 @@ Deno.serve(async (request: Request) => {
       try {
         const paths = (material.class_material_files ?? []).map((file: { storage_path: string }) => file.storage_path);
         if (paths.length) {
-          const { error: storageError } = await admin.storage.from("class-materials").remove(paths);
-          if (storageError) throw storageError;
+          await deleteStoredMaterialPaths(admin, paths);
         }
         const { error: deleteError } = await admin.from("class_materials").delete().eq("id", material.id);
         if (deleteError) throw deleteError;

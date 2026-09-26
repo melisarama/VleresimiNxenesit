@@ -22,12 +22,14 @@ function Import-DotEnv {
 function Get-BrowserConfigScript {
     $url = [Environment]::GetEnvironmentVariable('SUPABASE_URL')
     $key = [Environment]::GetEnvironmentVariable('SUPABASE_PUBLISHABLE_KEY')
+    $storageApiBaseUrl = [Environment]::GetEnvironmentVariable('STORAGE_API_BASE_URL')
     if ([string]::IsNullOrWhiteSpace($url) -or [string]::IsNullOrWhiteSpace($key)) {
-        return "window.MESIMI_CONFIG = { supabaseUrl: '', supabasePublishableKey: '' };"
+        return "window.MESIMI_CONFIG = { supabaseUrl: '', supabasePublishableKey: '', storageApiBaseUrl: '' };"
     }
     $data = @{
         supabaseUrl = $url
         supabasePublishableKey = $key
+        storageApiBaseUrl = $storageApiBaseUrl
     } | ConvertTo-Json -Compress
     return "window.MESIMI_CONFIG = $data;"
 }

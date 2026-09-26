@@ -2,6 +2,7 @@ const appConfig = window.MESIMI_CONFIG || {};
 
 export const supabaseUrl = appConfig.supabaseUrl;
 export const supabasePublishableKey = appConfig.supabasePublishableKey;
+export const storageApiBaseUrl = String(appConfig.storageApiBaseUrl || '').replace(/\/+$/, '');
 
 if (!supabaseUrl || !supabasePublishableKey) {
   throw new Error('Supabase configuration is missing. Create .env for local development or provide src/config.js in static hosting.');

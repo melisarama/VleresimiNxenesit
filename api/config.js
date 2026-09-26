@@ -2,6 +2,7 @@ module.exports = (request, response) => {
   const config = {
     supabaseUrl: process.env.SUPABASE_URL || "",
     supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY || "",
+    storageApiBaseUrl: process.env.STORAGE_API_BASE_URL || "",
   };
 
   response.setHeader("Content-Type", "application/javascript; charset=utf-8");
