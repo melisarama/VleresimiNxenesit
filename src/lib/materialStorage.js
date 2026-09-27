@@ -1,6 +1,7 @@
-import { storageApiBaseUrl, supabaseClient } from './supabaseClient.js';
+import { supabaseClient } from './supabaseClient.js';
 
 const MATERIAL_BUCKET = 'class-materials';
+const storageApiBaseUrl = String(window.MESIMI_CONFIG?.storageApiBaseUrl || '').replace(/\/+$/, '');
 
 function throwOnError(result, fallback) {
   if (result.error) throw new Error(result.error.message || fallback);

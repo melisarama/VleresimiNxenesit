@@ -1,4 +1,4 @@
-const ASSET_VERSION = '20260927-storage-fix';
+const ASSET_VERSION = '20260927-storage-fix2';
 
 async function loadAppShell() {
   const root = document.getElementById('appRoot');

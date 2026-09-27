@@ -5,7 +5,7 @@ import {
   markRetentionWarningRead,
   prepareMaterialFiles,
   publishTeacherMaterial
-} from '../services/teacherMaterialService.js?v=20260927-storage-fix';
+} from '../services/teacherMaterialService.js?v=20260927-storage-fix2';
 import {
   archiveAssistantThread,
   deleteAssistantNotification,

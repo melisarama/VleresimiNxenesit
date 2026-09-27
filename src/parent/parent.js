@@ -1,5 +1,5 @@
 import { parentMoodIcons, parentMoods } from '../data/staticData.js';
-import { createMaterialDownloadUrl } from '../services/teacherMaterialService.js?v=20260927-storage-fix';
+import { createMaterialDownloadUrl } from '../services/teacherMaterialService.js?v=20260927-storage-fix2';
 import {
   archiveParentThread,
   fetchParentChildren,
