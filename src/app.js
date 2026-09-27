@@ -1,12 +1,12 @@
-import { initializeAdminWorkflow } from './admin/admin.js';
-import { initializeAccountSetup } from './auth/accountSetup.js';
-import { supabaseClient } from './lib/supabaseClient.js';
-import { initializeParentWorkflow } from './parent/parent.js';
-import { subscribeToAssistantWorkspace, subscribeToTeacherWorkspace } from './services/realtimeService.js';
-import { fetchAssistantTeacherDashboardData, fetchTeacherAccessProfile, fetchTeacherDashboardData } from './services/teacherService.js';
-import { initializeAssistantTeacherPrototype } from './teacher/assistantTeacherPrototype.js';
-import { initializeTeacherPrototype } from './teacher/teacherPrototype.js';
-import { todayIso } from './utils/dates.js';
+import { initializeAdminWorkflow } from './admin/admin.js?v=20260927-storage-fix';
+import { initializeAccountSetup } from './auth/accountSetup.js?v=20260927-storage-fix';
+import { supabaseClient } from './lib/supabaseClient.js?v=20260927-storage-fix';
+import { initializeParentWorkflow } from './parent/parent.js?v=20260927-storage-fix';
+import { subscribeToAssistantWorkspace, subscribeToTeacherWorkspace } from './services/realtimeService.js?v=20260927-storage-fix';
+import { fetchAssistantTeacherDashboardData, fetchTeacherAccessProfile, fetchTeacherDashboardData } from './services/teacherService.js?v=20260927-storage-fix';
+import { initializeAssistantTeacherPrototype } from './teacher/assistantTeacherPrototype.js?v=20260927-storage-fix';
+import { initializeTeacherPrototype } from './teacher/teacherPrototype.js?v=20260927-storage-fix';
+import { todayIso } from './utils/dates.js?v=20260927-storage-fix';
 
 function resultData(result) {
   if (result.error) throw result.error;

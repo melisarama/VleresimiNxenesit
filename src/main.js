@@ -1,6 +1,8 @@
+const ASSET_VERSION = '20260927-storage-fix';
+
 async function loadAppShell() {
   const root = document.getElementById('appRoot');
-  const response = await fetch('src/views/app-shell.html', { cache: 'no-store' });
+  const response = await fetch(`src/views/app-shell.html?v=${ASSET_VERSION}`, { cache: 'no-store' });
   if (!response.ok) {
     throw new Error('Could not load the application shell.');
   }
@@ -9,7 +11,7 @@ async function loadAppShell() {
 
 try {
   await loadAppShell();
-  await import('./app.js');
+  await import(`./app.js?v=${ASSET_VERSION}`);
 } catch (error) {
   console.error(error);
   const message = error && error.message ? error.message : 'Unknown startup error';

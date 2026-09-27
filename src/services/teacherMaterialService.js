@@ -1,9 +1,9 @@
-import { supabaseClient } from '../lib/supabaseClient.js';
+import { supabaseClient } from '../lib/supabaseClient.js?v=20260927-storage-fix';
 import {
   createSignedMaterialDownloadUrl,
   deleteMaterialFiles,
   uploadMaterialFile
-} from '../lib/materialStorage.js';
+} from '../lib/materialStorage.js?v=20260927-storage-fix';
 
 export const MATERIAL_BUCKET = 'class-materials';
 export const MAX_MATERIAL_FILE_BYTES = 10 * 1024 * 1024;
