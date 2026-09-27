@@ -70,7 +70,7 @@ function Get-StaticContentType {
 function Try-Send-StaticFile {
     param($Stream, [string]$RequestPath)
     $normalized = [System.Uri]::UnescapeDataString(($RequestPath -split '\?')[0].TrimStart('/')).Replace('\', '/')
-    if ($normalized -eq 'src/config.js') {
+    if ($normalized -eq 'src/config.js' -or $normalized -eq 'api/config.js') {
         Send-Response $Stream 200 'OK' 'application/javascript; charset=utf-8' ($utf8.GetBytes((Get-BrowserConfigScript)))
         return $true
     }
